@@ -1,0 +1,162 @@
+{
+  "meta": {
+    "lastTouchedVersion": "2026.3.13",
+    "lastTouchedAt": "2026-03-22T14:57:23.268Z"
+  },
+  "wizard": {
+    "lastRunAt": "2026-03-22T11:02:18.750Z",
+    "lastRunVersion": "2026.3.13",
+    "lastRunCommand": "configure",
+    "lastRunMode": "local"
+  },
+  "auth": {
+    "profiles": {
+      "github-copilot:github": {
+        "provider": "github-copilot",
+        "mode": "token"
+      }
+    }
+  },
+  "agents": {
+    "defaults": {
+      "model": {
+        "primary": "github-copilot/gpt-5.4",
+        "fallbacks": [
+          "github-copilot/gpt-5.4",
+          "github-copilot/claude-opus-4.6",
+          "github-copilot/claude-sonnet-4.6",
+          "github-copilot/gemini-2.5-pro",
+          "github-copilot/gemini-3.1-pro-preview",
+          "github-copilot/gpt-5.3-codex",
+          "github-copilot/grok-code-fast-1"
+        ]
+      },
+      "models": {
+        "github-copilot/gpt-5.4": {},
+        "github-copilot/claude-opus-4.6": {},
+        "github-copilot/claude-sonnet-4.6": {},
+        "github-copilot/gemini-2.5-pro": {},
+        "github-copilot/gemini-3.1-pro-preview": {},
+        "github-copilot/gpt-5.3-codex": {},
+        "github-copilot/grok-code-fast-1": {},
+        "github-copilot/gpt-4o": {}
+      },
+      "workspace": "/home/xtrao/.openclaw/workspace",
+      "compaction": {
+        "mode": "safeguard"
+      }
+    }
+  },
+  "tools": {
+    "profile": "coding",
+    "web": {
+      "search": {
+        "enabled": true,
+        "provider": "gemini",
+        "gemini": {
+          "apiKey": "<REDACTED>",
+          "model": "gemini-2.5-flash"
+        },
+        "timeoutSeconds": 20,
+        "cacheTtlMinutes": 120
+      }
+    }
+  },
+  "commands": {
+    "native": "auto",
+    "nativeSkills": "auto",
+    "restart": true,
+    "ownerDisplay": "raw"
+  },
+  "session": {
+    "dmScope": "per-account-channel-peer"
+  },
+  "hooks": {
+    "internal": {
+      "enabled": true,
+      "entries": {
+        "boot-md": {
+          "enabled": false
+        },
+        "bootstrap-extra-files": {
+          "enabled": true
+        },
+        "command-logger": {
+          "enabled": true
+        },
+        "session-memory": {
+          "enabled": true
+        },
+        "resume-after-restart": {
+          "enabled": true
+        }
+      }
+    }
+  },
+  "gateway": {
+    "port": 18789,
+    "mode": "local",
+    "bind": "loopback",
+    "controlUi": {
+      "allowedOrigins": [
+        "https://azurevm.tail65b682.ts.net"
+      ]
+    },
+    "auth": {
+      "mode": "password",
+      "token": "<REDACTED>",
+      "password": "<REDACTED>",
+      "allowTailscale": false
+    },
+    "tailscale": {
+      "mode": "funnel",
+      "resetOnExit": false
+    },
+    "nodes": {
+      "denyCommands": [
+        "camera.snap",
+        "camera.clip",
+        "screen.record",
+        "contacts.add",
+        "calendar.add",
+        "reminders.add",
+        "sms.send"
+      ]
+    }
+  },
+  "skills": {
+    "entries": {
+      "goplaces": {
+        "apiKey": "<REDACTED>"
+      },
+      "nano-banana-pro": {
+        "apiKey": "<REDACTED>"
+      }
+    }
+  },
+  "plugins": {
+    "allow": [
+      "openclaw-weixin"
+    ],
+    "entries": {
+      "openclaw-weixin": {
+        "enabled": true
+      }
+    },
+    "installs": {
+      "openclaw-weixin": {
+        "source": "npm",
+        "spec": "@tencent-weixin/openclaw-weixin",
+        "installPath": "/home/xtrao/.openclaw/extensions/openclaw-weixin",
+        "version": "1.0.2",
+        "resolvedName": "@tencent-weixin/openclaw-weixin",
+        "resolvedVersion": "1.0.2",
+        "resolvedSpec": "@tencent-weixin/openclaw-weixin@1.0.2",
+        "integrity": "sha512-kYPEowHB/0VWt9nQFee/AS6Fb+jbnu38wjkgZDBdKTuJoBL0IBW2obQ0ymgFKBFJJL9rDwnFrb/17ORGZD/X8Q==",
+        "shasum": "<REDACTED>",
+        "resolvedAt": "2026-03-22T10:32:19.764Z",
+        "installedAt": "2026-03-22T10:32:31.098Z"
+      }
+    }
+  }
+}

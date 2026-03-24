@@ -2,17 +2,44 @@
 
 Private, sanitized backup of selected OpenClaw files from `azurevm`.
 
-This repository is meant to preserve the parts of the machine that are most useful to rebuild or understand the current OpenClaw setup, without exposing live secrets.
+This repository preserves the parts of the machine that are most useful to rebuild, debug, or evolve the current OpenClaw setup, without exposing live secrets.
+
+It now serves **two roles**:
+- a sanitized backup / restore aid for the current system
+- a design and operations record for the next OpenClaw iteration
 
 ## What this backup is for
 
 Use this repo to:
 - preserve custom OpenClaw skills and local workflow logic
 - keep a redacted copy of important config structure
-- save the custom gateway restart/resume mechanism
-- document the current workspace shape and assistant setup
+- save current operational recovery mechanisms and incident-response scripts
+- document the workspace shape and assistant setup
+- track architecture decisions for the next durability / low-cost retrieval upgrade
 
 Use it as a **reference / restore aid**, not as a full machine image.
+
+## Current state vs target state
+
+### Current state preserved here
+This repo currently captures a **V1 operational continuity layer**:
+- redacted config
+- custom skills
+- `openclaw-weixin` compatibility fixes
+- safe upgrade SOPs
+- a `restart-resume` proof of concept for controlled gateway restarts
+
+### Target state being documented here
+The intended V2 direction is:
+- lower-cost information retrieval via RSS, browser automation, and local code execution
+- durable session continuity backed by storage instead of in-memory-only runtime state
+- keeping the current restart-resume flow as a fallback, not the primary safety mechanism
+
+See:
+- `workspace/docs/openclaw-v2-roadmap.md`
+- `workspace/docs/openclaw-v2-24h-sprint.md`
+- `workspace/docs/openclaw-v2-implementation-checklist.md`
+- `workspace/docs/restart-resume-poc.md`
 
 ## Included
 
@@ -26,7 +53,15 @@ Stored under `workspace/`:
 - `TOOLS.md`
 - `USER.md`
 
-### Custom restart-resume hook
+### Operational docs and SOPs
+Stored under `workspace/docs/`:
+- `2026-03-24-work-summary.md`
+- `backup-strategy.md`
+- `openclaw-safe-upgrade-sop.md`
+- `restart-resume-poc.md`
+- `openclaw-v2-roadmap.md`
+
+### Custom restart-resume hook (V1 continuity layer)
 Stored under:
 - `workspace/hooks/resume-after-restart/HOOK.md`
 - `workspace/hooks/resume-after-restart/handler.js`
@@ -46,6 +81,12 @@ Stored under:
 
 This file keeps the structure of the live OpenClaw config while removing sensitive values.
 
+### Patched extension reference
+Stored under `extensions/`:
+- `openclaw-weixin/`
+
+This preserves the locally repaired extension state used to recover from OpenClaw SDK drift.
+
 ## Excluded on purpose
 
 This repo does **not** include:
@@ -64,6 +105,8 @@ This repo does **not** include:
 ├── README.md
 ├── config/
 │   └── openclaw.redacted.json
+├── extensions/
+│   └── openclaw-weixin/
 ├── skills/
 │   ├── daily-stock-analysis/
 │   └── no-card-search/
@@ -75,10 +118,12 @@ This repo does **not** include:
     ├── SOUL.md
     ├── TOOLS.md
     ├── USER.md
+    ├── docs/
     ├── hooks/
     │   └── resume-after-restart/
-    └── runtime/
-        └── pending-resume.d/
+    ├── runtime/
+    │   └── pending-resume.d/
+    └── scripts/
 ```
 
 ## Restore notes
@@ -89,7 +134,7 @@ If rebuilding on another machine, treat this repo as a guide:
 2. Recreate secrets manually (`.env`, tokens, API keys, device identity).
 3. Compare the target machine's live config against `config/openclaw.redacted.json`.
 4. Reinstall any required runtimes / CLIs used by the skills.
-5. Test custom hooks and skills before relying on them in production.
+5. Test custom hooks, scripts, and extensions before relying on them in production.
 
 ## Notable custom work preserved here
 
@@ -106,10 +151,22 @@ A no-credit-card fallback search skill that combines:
 An OpenClaw wrapper skill around the local stock analysis system.
 
 ### `resume-after-restart`
-A custom recovery flow for gateway restarts that:
+A V1 recovery flow for gateway restarts that:
 - avoids polluting the visible session with BOOT noise
 - resumes pending tasks in hidden recovery sessions
 - mirrors recovery results back into the original session
+
+Important: this is **not** the final durability architecture. It is a controlled-restart recovery layer, not a full replacement for storage-backed session continuity.
+
+### `patch-openclaw-weixin.sh`
+A reusable patch script to repair extension compatibility after OpenClaw upgrades when SDK import paths drift.
+
+### `openclaw-v2-roadmap.md`
+A forward-looking design document covering:
+- low-cost retrieval strategy
+- browser/code/RSS/RAG capability roadmap
+- durable session storage direction
+- transition away from restart-only recovery heuristics
 
 ## Updating this backup
 
@@ -119,7 +176,7 @@ Recommended workflow for future updates:
    - `/home/xtrao/.openclaw/backup-staging/azurevm-openclaw-backup`
 2. Review for secrets before committing.
 3. Commit locally.
-4. Push to this private GitHub repo.
+4. Push to this private GitHub repo when the milestone is worth preserving remotely.
 
 ## Security note
 

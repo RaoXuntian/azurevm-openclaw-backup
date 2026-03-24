@@ -2,6 +2,22 @@
 
 Goal: reduce task interruption when the assistant intentionally restarts the gateway.
 
+## Important status note
+
+This document describes the **current V1 continuity layer**, not the final durability architecture.
+
+It helps with:
+- planned maintenance
+- deliberate gateway restarts triggered through helper wrappers
+- best-effort continuation of sessions that look unfinished
+
+It does **not** make the gateway fully stateless or crash-proof by itself.
+
+The intended V2 direction is documented in:
+- `workspace/docs/openclaw-v2-roadmap.md`
+
+---
+
 ## Scope of this PoC
 
 Current scope:
@@ -15,6 +31,7 @@ Still not covered automatically:
 - literal hidden model reasoning state (cannot be preserved across process restart)
 - long-idle / stale sessions outside the recency window unless explicitly forced
 - clearly completed sessions (intentionally skipped by the scanner)
+- full crash-safe continuity for turns that were never durably persisted before failure
 
 ## How it works
 
@@ -23,7 +40,7 @@ Still not covered automatically:
 2. Existing `resume-after-restart` startup hook will:
    - pick up each pending task
    - resume it in a hidden recovery session
-   - deliver the final result back to the original session
+   - deliver the final result back into the original session flow
 3. For Weixin direct chats, the scanner records `reply.channel/to/accountId` when available so the hook can deliver the reply back through the channel.
 4. For channels without direct delivery support, the hook mirrors the final reply back into the original session transcript.
 
@@ -114,3 +131,15 @@ This means false negatives are preferred over false positives: better to miss a 
 - It reconstructs continuity from transcript history, not live in-memory reasoning state.
 - It currently only captures direct channel reply metadata for channels where it is already known how to send directly (`openclaw-weixin`).
 - Recent-but-completed sessions may still be scanned, but the current heuristics are designed to avoid scheduling them unless the transcript tail looks genuinely incomplete.
+- It should be treated as a **fallback continuity mechanism** until V2 durable turn storage exists.
+
+## Position in the V2 roadmap
+
+In the target V2 architecture:
+- user/assistant turns are durably stored as they happen
+- restart-resume is no longer the primary continuity layer
+- `pending-resume.d` remains useful for planned maintenance and explicit recovery workflows
+
+Short version:
+- V1 PoC = good for controlled restarts
+- V2 architecture = required for real crash tolerance

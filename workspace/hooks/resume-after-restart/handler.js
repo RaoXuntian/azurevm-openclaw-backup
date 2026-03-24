@@ -58,6 +58,31 @@ function buildHiddenResumeSessionId(filePath) {
   return `resume-${taskIdForPath(filePath)}-${crypto.randomUUID().slice(0, 8)}`;
 }
 
+async function readRecentVisibleMessages(sessionFile, limit = 8) {
+  try {
+    const raw = await readFile(sessionFile, 'utf8');
+    const lines = raw.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+    const out = [];
+    for (let i = lines.length - 1; i >= 0 && out.length < limit; i -= 1) {
+      try {
+        const row = JSON.parse(lines[i]);
+        if (row?.type !== 'message') continue;
+        const msg = row.message || {};
+        const role = msg.role;
+        if (!['user', 'assistant', 'system'].includes(role)) continue;
+        const text = (msg.content || []).filter((c) => c?.type === 'text').map((c) => c.text || '').join('\n').trim();
+        if (!text) continue;
+        out.push({ role, text });
+      } catch {
+        continue;
+      }
+    }
+    return out.reverse();
+  } catch {
+    return [];
+  }
+}
+
 function buildNotificationText(data) {
   if (normalizeText(data?.notificationText)) return data.notificationText.trim();
   if (normalizeText(data?.lastResult)) return data.lastResult.trim();
@@ -171,28 +196,6 @@ async function appendAssistantMirrorToTranscript({ sessionFile, sessionId, text,
   return { ok: true, duplicate: false };
 }
 
-function buildResumePrompt(filePath) {
-  return [
-    'You are resuming a post-gateway-restart task from a hidden recovery session.',
-    `Resume file: ${filePath}`,
-    '',
-    'Instructions:',
-    '1. Read the JSON file above.',
-    '2. Continue ONLY if active=true, status="pending", and resumeAfterGatewayRestart=true.',
-    '3. This is a targeted recovery task. Continue ONLY the task explicitly recorded in that file.',
-    '4. If the file includes sessionKey, you may read a small amount of recent session history for alignment, but do not expand into unrelated work.',
-    '5. Execute task / steps / notes using idempotent, safe, re-entrant actions.',
-    '6. When finished, update the SAME JSON file with:',
-    '   - status: "completed" or "failed"',
-    '   - active: false',
-    '   - completedAt or failedAt',
-    '   - lastResult: brief human-readable result',
-    '7. Do NOT proactively send user-facing messages from this hidden recovery turn unless the file explicitly requires it. The startup hook will deliver from lastResult / reply when possible.',
-    '8. If the task no longer applies or cannot be completed safely, mark it failed and explain why in lastResult.',
-    '9. If there is nothing to do, reply ONLY: NO_REPLY.'
-  ].join('\n');
-}
-
 async function ensurePendingDir() {
   await mkdir(pendingDir, { recursive: true });
 }
@@ -290,27 +293,72 @@ async function loadOpenClawInternals() {
 
     const importMatch = async (prefix, predicate) => {
       for (const name of files.filter((file) => file.startsWith(`${prefix}-`) && file.endsWith('.js')).sort()) {
-        const mod = await import(pathToFileURL(path.join(distDir, name)).href);
-        if (predicate(mod)) return { name, mod };
+        const fullPath = path.join(distDir, name);
+        const source = await readFile(fullPath, 'utf8');
+        const mod = await import(pathToFileURL(fullPath).href);
+        if (predicate(mod, { name, source, fullPath })) return { name, mod, source, fullPath };
       }
       throw new Error(`unable to resolve internal module for ${prefix}`);
     };
 
-    const agent = await importMatch('agent', (mod) => typeof mod.t === 'function' && typeof mod.r === 'function');
-    const reply = await importMatch('reply', (mod) => typeof mod.mp === 'function');
+    const sessions = await importMatch('sessions', (mod) => typeof mod.d === 'function');
+    const piEmbedded = await importMatch(
+      'pi-embedded',
+      (_mod, ctx) => /agentCommandFromIngress as [A-Za-z$_][A-Za-z0-9$_]*/.test(ctx.source) && /createDefaultDeps as [A-Za-z$_][A-Za-z0-9$_]*/.test(ctx.source)
+    );
+    const agentCommandAlias = /agentCommandFromIngress as ([A-Za-z$_][A-Za-z0-9$_]*)/.exec(piEmbedded.source)?.[1];
+    const createDefaultDepsAlias = /createDefaultDeps as ([A-Za-z$_][A-Za-z0-9$_]*)/.exec(piEmbedded.source)?.[1];
+    const requestHeartbeatAlias = /requestHeartbeatNow as ([A-Za-z$_][A-Za-z0-9$_]*)/.exec(piEmbedded.source)?.[1];
+    const agentCommandFromIngress = agentCommandAlias ? piEmbedded.mod[agentCommandAlias] : null;
+    const createDefaultDeps = createDefaultDepsAlias ? piEmbedded.mod[createDefaultDepsAlias] : null;
+    const requestHeartbeatNow = requestHeartbeatAlias ? piEmbedded.mod[requestHeartbeatAlias] : null;
+    if (typeof agentCommandFromIngress !== 'function') throw new Error('unable to resolve agentCommandFromIngress export from pi-embedded');
+    if (typeof createDefaultDeps !== 'function') throw new Error('unable to resolve createDefaultDeps export from pi-embedded');
 
     return {
-      agentCommand: agent.mod.t,
-      createDefaultDeps: agent.mod.r,
-      emitSessionTranscriptUpdate: reply.mod.mp,
+      emitSessionTranscriptUpdate: sessions.mod.d,
+      agentCommandFromIngress,
+      createDefaultDeps,
+      requestHeartbeatNow: typeof requestHeartbeatNow === 'function' ? requestHeartbeatNow : null,
     };
   })();
   return cachedInternalsPromise;
 }
 
+function buildResumePrompt(filePath, data, recentMessages = []) {
+  const taskId = taskIdForPath(filePath);
+  const historyBlock = recentMessages.length
+    ? recentMessages.map((m) => `${m.role.toUpperCase()}: ${m.text}`).join('\n\n')
+    : '(No recent visible transcript excerpt available.)';
+  const lines = [
+    'Your previous turn in a user conversation was interrupted by a gateway restart.',
+    'You are running in a hidden recovery session.',
+    'Use the transcript excerpt below to continue only the latest unfinished user request.',
+    'Write a natural user-facing reply only. Do not mention hooks, restart plumbing, internal recovery, BOOT files, or hidden sessions.',
+    normalizeText(data?.task) ? `Recorded task: ${data.task.trim()}` : '',
+    Array.isArray(data?.notes) && data.notes.length ? `Recorded notes: ${data.notes.slice(0, 4).join(' | ')}` : '',
+    `Recovery task id: ${taskId}`,
+    '',
+    'Recent transcript excerpt:',
+    historyBlock,
+  ].filter(Boolean);
+  return lines.join('\n');
+}
+
 async function runResumeTask(filePath, data, event) {
-  const internals = await loadOpenClawInternals();
-  const deps = event?.context?.deps ?? internals.createDefaultDeps();
+  const sessionKey = normalizeText(data?.sessionKey);
+  if (!sessionKey) {
+    return writeJson(filePath, {
+      ...data,
+      status: 'failed',
+      active: false,
+      failedAt: nowIso(),
+      lastResult: '无法续跑：缺少 sessionKey。',
+    });
+  }
+
+  const { agentCommandFromIngress, createDefaultDeps } = await loadOpenClawInternals();
+  const deps = event?.context?.deps ?? createDefaultDeps();
   const runtime = {
     log: () => {},
     error: (message) => console.warn('[resume-after-restart][agent]', String(message)),
@@ -319,6 +367,22 @@ async function runResumeTask(filePath, data, event) {
     },
   };
 
+  const agentId = normalizeText(data?.agentId) || parseAgentId(sessionKey);
+  const storePath = resolveSessionStorePath(agentId);
+  const store = await readJson(storePath);
+  const entry = store?.[sessionKey];
+  if (!entry?.sessionId) {
+    return writeJson(filePath, {
+      ...data,
+      status: 'failed',
+      active: false,
+      failedAt: nowIso(),
+      lastResult: `无法续跑：session not found for ${sessionKey}`,
+    });
+  }
+  const sessionFile = resolveTranscriptPathFromEntry(storePath, entry);
+  const recentMessages = sessionFile ? await readRecentVisibleMessages(sessionFile, 8) : [];
+
   const prepared = await writeJson(filePath, {
     ...data,
     attemptCount: Number(data?.attemptCount ?? 0) + 1,
@@ -326,35 +390,39 @@ async function runResumeTask(filePath, data, event) {
     resumeSessionKey: buildHiddenResumeSessionKey(data, filePath),
   });
 
+  await sleep(1500);
+
   try {
-    await internals.agentCommand({
-      message: buildResumePrompt(filePath),
+    const result = await agentCommandFromIngress({
+      message: buildResumePrompt(filePath, prepared, recentMessages),
       sessionKey: prepared.resumeSessionKey,
       sessionId: buildHiddenResumeSessionId(filePath),
+      agentId,
       deliver: false,
       senderIsOwner: true,
+      allowModelOverride: false,
+      messageChannel: normalizeText(prepared?.originSnapshot?.provider) || 'webchat',
     }, runtime, deps);
-  } catch (err) {
-    const refreshed = await readJson(filePath).catch(() => prepared);
-    if (isTerminalStatus(refreshed?.status)) return refreshed;
+
+    const text = (result?.payloads ?? []).map((payload) => payload?.text).filter((value) => typeof value === 'string' && value.trim()).join('\n').trim();
     return writeJson(filePath, {
-      ...refreshed,
-      status: 'failed',
+      ...prepared,
       active: false,
+      status: 'completed',
+      completedAt: nowIso(),
+      lastResult: text || '恢复任务已执行，但未生成可见回复。',
+      notificationStatus: 'ready-to-deliver',
+      sessionWakeRequestedAt: nowIso(),
+    });
+  } catch (err) {
+    return writeJson(filePath, {
+      ...prepared,
+      active: false,
+      status: 'failed',
       failedAt: nowIso(),
-      lastResult: `隐藏恢复会话执行失败：${String(err)}`,
+      lastResult: `恢复执行失败：${String(err)}`,
     });
   }
-
-  const refreshed = await readJson(filePath).catch(() => prepared);
-  if (isTerminalStatus(refreshed?.status)) return refreshed;
-  return writeJson(filePath, {
-    ...refreshed,
-    status: 'failed',
-    active: false,
-    failedAt: nowIso(),
-    lastResult: '隐藏恢复会话已结束，但任务文件未进入 completed/failed 终态。',
-  });
 }
 
 async function mirrorReplyIntoSession(filePath, data) {
@@ -443,6 +511,8 @@ async function processTaskFile(filePath, event) {
   }
 
   if (!isTerminalStatus(data?.status)) return;
+
+  if (['delivered-by-agent','sent','mirrored'].includes(normalizeText(data?.notificationStatus) || '')) return;
 
   if (data?.reply && !normalizeText(data?.notificationSentAt)) {
     data = await deliverReplyTarget(filePath, data);

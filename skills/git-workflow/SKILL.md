@@ -84,6 +84,29 @@ feat: Add New Feature. # capitalized, trailing period, too generic
 - No `Co-Authored-By: Claude`, `Generated with AI`, or any AI attribution markers
 - No commit messages over 72 characters in the subject line
 
+## Git Identity (MANDATORY)
+
+Set the git committer name to the **model name** that produced the commit. This makes it clear which model authored each change.
+
+Before committing, detect your current model and configure git identity:
+
+```bash
+# Set committer name to the model name (e.g. claude-opus-4.6, gpt-5.4, gemini-2.5-pro)
+# The model name is available from the runtime context or session_status.
+git config user.name "<model-name>"
+
+# Use a shared no-reply email for all agents
+git config user.email "agent@openclaw.local"
+```
+
+Examples of valid committer names:
+- `claude-opus-4.6`
+- `gpt-5.4`
+- `gemini-2.5-pro`
+- `claude-sonnet-4.6`
+
+Do **not** use generic names like `Ubuntu`, `root`, `OpenClaw`, or `AI Assistant`.
+
 ## Push Behavior
 
 After every commit, push to **your feature branch** immediately. Do not ask.
@@ -179,7 +202,19 @@ gh pr create \
 
 After the PR is created, spawn a reviewer sub-agent to review the PR.
 
-The reviewer should be a separate session (use `sessions_spawn` in OpenClaw, or any equivalent isolated sub-agent mechanism). The key requirements are:
+**Reviewer model selection (MANDATORY):** The reviewer must use a **different model** from the one that authored the PR. This ensures independent review and avoids blind spots from the same model reviewing its own patterns.
+
+Model priority for the reviewer (pick the first that is different from the author):
+
+| Priority | Model family |
+|----------|-------------|
+| 1st | Claude (claude-opus-4.6, claude-sonnet-4.6) |
+| 2nd | GPT (gpt-5.4, gpt-5.4-mini) |
+| 3rd | Gemini (gemini-2.5-pro, gemini-3.1-pro-preview) |
+
+Example: if the PR was authored by `claude-opus-4.6`, the reviewer should be `gpt-5.4`. If authored by `gpt-5.4`, use `claude-opus-4.6`. If authored by `gemini-2.5-pro`, use `claude-opus-4.6`.
+
+The reviewer should be a separate session (use `sessions_spawn` with the `model` parameter in OpenClaw, or any equivalent isolated sub-agent mechanism). The key requirements are:
 
 1. The reviewer reads the PR diff: `gh pr diff <number> --repo <owner/repo>`
 2. The reviewer posts comments: `gh pr review <number> --repo <owner/repo> --comment --body '<review>'`

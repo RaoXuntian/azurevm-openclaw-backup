@@ -1,102 +1,18 @@
 # azurevm-openclaw-backup
 
-Private, sanitized backup of selected OpenClaw files from `azurevm`.
+Private backup of the OpenClaw deployment on `azurevm`.
 
-This repository preserves the parts of the machine that are most useful to rebuild, debug, or evolve the current OpenClaw setup, without exposing live secrets.
+This repo preserves the files needed to rebuild, debug, or evolve the current setup — without exposing live secrets.
 
-It now serves **two roles**:
-- a sanitized backup / restore aid for the current system
-- a design and operations record for the next OpenClaw iteration
+## What this repo is for
 
-## What this backup is for
+- Preserve custom skills (shared and per-agent)
+- Keep a redacted copy of config structure
+- Save operational scripts and recovery mechanisms
+- Document workspace shape and assistant setup for each agent
+- Track architecture decisions and SOPs
 
-Use this repo to:
-- preserve custom OpenClaw skills and local workflow logic
-- keep a redacted copy of important config structure
-- save current operational recovery mechanisms and incident-response scripts
-- document the workspace shape and assistant setup
-- track architecture decisions for the next durability / low-cost retrieval upgrade
-
-Use it as a **reference / restore aid**, not as a full machine image.
-
-## Current state vs target state
-
-### Current state preserved here
-This repo currently captures a **V1 operational continuity layer**:
-- redacted config
-- custom skills
-- `openclaw-weixin` compatibility fixes
-- safe upgrade SOPs
-- a `restart-resume` proof of concept for controlled gateway restarts
-
-### Target state being documented here
-The intended V2 direction is:
-- lower-cost information retrieval via RSS, browser automation, and local code execution
-- durable session continuity backed by storage instead of in-memory-only runtime state
-- keeping the current restart-resume flow as a fallback, not the primary safety mechanism
-
-See:
-- `workspace/docs/openclaw-v2-roadmap.md`
-- `workspace/docs/openclaw-v2-24h-sprint.md`
-- `workspace/docs/openclaw-v2-implementation-checklist.md`
-- `workspace/docs/restart-resume-poc.md`
-
-## Included
-
-### Workspace core files
-Stored under `workspace/`:
-- `AGENTS.md`
-- `BOOT.md`
-- `HEARTBEAT.md`
-- `IDENTITY.md`
-- `SOUL.md`
-- `TOOLS.md`
-- `USER.md`
-
-### Operational docs and SOPs
-Stored under `workspace/docs/`:
-- `2026-03-24-work-summary.md`
-- `backup-strategy.md`
-- `openclaw-safe-upgrade-sop.md`
-- `restart-resume-poc.md`
-- `openclaw-v2-roadmap.md`
-
-### Custom restart-resume hook (V1 continuity layer)
-Stored under:
-- `workspace/hooks/resume-after-restart/HOOK.md`
-- `workspace/hooks/resume-after-restart/handler.js`
-
-### Runtime reference
-Stored under:
-- `workspace/runtime/pending-resume.d/README.md`
-
-### Custom skills
-Stored under `skills/`:
-- `daily-stock-analysis/`
-- `no-card-search/`
-
-### Redacted config snapshot
-Stored under:
-- `config/openclaw.redacted.json`
-
-This file keeps the structure of the live OpenClaw config while removing sensitive values.
-
-### Patched extension reference
-Stored under `extensions/`:
-- `openclaw-weixin/`
-
-This preserves the locally repaired extension state used to recover from OpenClaw SDK drift.
-
-## Excluded on purpose
-
-This repo does **not** include:
-- `memory/` and personal daily notes
-- `.env` files
-- raw API keys, passwords, tokens, or cookies
-- device identity / pairing / approval state
-- pending devices / auth materials
-- full source workspace git history
-- unredacted `openclaw.json`
+Use it as a **reference and restore aid**, not as a full machine image.
 
 ## Repository layout
 
@@ -104,81 +20,100 @@ This repo does **not** include:
 .
 ├── README.md
 ├── config/
-│   └── openclaw.redacted.json
+│   └── openclaw.redacted.json        # Redacted config (structure only, no secrets)
 ├── extensions/
-│   └── openclaw-weixin/
-├── skills/
+│   └── openclaw-weixin/              # Locally patched Weixin plugin source
+├── memory/                           # Selected memory/daily-note snapshots
+├── skills/                           # Shared skills (available to all agents)
 │   ├── daily-stock-analysis/
-│   └── no-card-search/
-└── workspace/
-    ├── AGENTS.md
-    ├── BOOT.md
-    ├── HEARTBEAT.md
-    ├── IDENTITY.md
-    ├── SOUL.md
-    ├── TOOLS.md
-    ├── USER.md
-    ├── docs/
-    ├── hooks/
-    │   └── resume-after-restart/
-    ├── runtime/
-    │   └── pending-resume.d/
-    └── scripts/
+│   ├── git-workflow/                  # Git conventions, PR flow, cross-model review
+│   └── no-card-search/               # Fallback web search without paid API
+├── workspace/                        # Main agent (id: main) workspace snapshot
+│   ├── AGENTS.md, SOUL.md, USER.md, ...
+│   ├── docs/                         # SOPs, roadmaps, summaries
+│   ├── hooks/                        # Custom hooks (resume-after-restart)
+│   ├── runtime/                      # Runtime reference (pending-resume format)
+│   └── scripts/                      # Operational scripts
+└── workspace-coding/                 # Coding agent (id: coding) workspace snapshot
+    ├── AGENTS.md, SOUL.md, USER.md, ...
+    └── skills/
+        └── ui-ux-pro-max/            # UI/UX design intelligence skill
 ```
 
-## Restore notes
+## Agents
 
-If rebuilding on another machine, treat this repo as a guide:
+| Agent ID | Model | Workspace | Purpose |
+|----------|-------|-----------|---------|
+| `main` | `github-copilot/gpt-5.4` | `workspace/` | General assistant, daily operations |
+| `coding` | `github-copilot/claude-opus-4.6` | `workspace-coding/` | Code writing, UI/UX design |
 
-1. Restore files into the matching OpenClaw directories.
+## Shared skills (`skills/`)
+
+These are installed at `~/.openclaw/skills/` on the host and available to **all agents**.
+
+| Skill | Description |
+|-------|-------------|
+| `git-workflow` | Conventional commits, PR-based merge flow, cross-model code review, branch naming |
+| `no-card-search` | Fallback web/news search via Bing RSS, Google News, Wikipedia, arXiv (no paid API needed) |
+| `daily-stock-analysis` | Wrapper skill for the local A-share/HK/US stock analysis system |
+
+## Per-agent skills
+
+| Agent | Skill | Description |
+|-------|-------|-------------|
+| `coding` | `ui-ux-pro-max` | Design intelligence: 67 UI styles, 161 color palettes, 57 font pairings, design system generation. Adapted from [upstream repo](https://github.com/nextlevelbuilder/ui-ux-pro-max-skill). |
+
+## Operational docs (`workspace/docs/`)
+
+| File | Content |
+|------|---------|
+| `backup-strategy.md` | Backup workflow and conventions |
+| `openclaw-safe-upgrade-sop.md` | Safe upgrade procedure to avoid service disruption |
+| `restart-resume-poc.md` | V1 restart-resume recovery mechanism design |
+| `openclaw-v2-roadmap.md` | V2 architecture direction (durable sessions, low-cost retrieval) |
+| `openclaw-v2-24h-sprint.md` | Sprint plan for V2 implementation |
+| `openclaw-v2-implementation-checklist.md` | Detailed V2 implementation checklist |
+| `2026-03-24-work-summary.md` | Work summary for 2026-03-24 |
+
+## Operational scripts (`workspace/scripts/`)
+
+| Script | Purpose |
+|--------|---------|
+| `patch-openclaw-weixin.sh` | Repair Weixin plugin after OpenClaw upgrades when SDK paths drift |
+| `prepare-gateway-resume.js` | Prepare a single session for gateway restart recovery |
+| `prepare-gateway-resume-all.js` | Scan all sessions and prepare recovery tasks |
+| `restart-gateway-safe.sh` | Safe gateway restart with resume preparation |
+| `restart-gateway-safe-all.sh` | Safe gateway restart covering all active sessions |
+
+## Restore guide
+
+1. Copy files into the matching OpenClaw directories on the target machine.
 2. Recreate secrets manually (`.env`, tokens, API keys, device identity).
 3. Compare the target machine's live config against `config/openclaw.redacted.json`.
-4. Reinstall any required runtimes / CLIs used by the skills.
-5. Test custom hooks, scripts, and extensions before relying on them in production.
+4. Recreate agents via `openclaw agents add` if needed (see Agents table above).
+5. Install shared skills to `~/.openclaw/skills/`, per-agent skills to each workspace's `skills/`.
+6. Reinstall required runtimes/CLIs (Python 3, `gh`, etc.).
+7. Test hooks, scripts, and extensions before relying on them in production.
 
-## Notable custom work preserved here
+## Excluded on purpose
 
-### `no-card-search`
-A no-credit-card fallback search skill that combines:
-- Bing RSS web search
-- Google News RSS
-- official RSS feeds for selected media
-- Wikipedia OpenSearch
-- arXiv API
-- bilingual global news brief generation
+- `memory/` daily notes (only selected snapshots included)
+- `.env` files, raw API keys, passwords, tokens, cookies
+- Device identity, pairing, and approval state
+- Full workspace git history
+- Unredacted `openclaw.json`
 
-### `daily-stock-analysis`
-An OpenClaw wrapper skill around the local stock analysis system.
+## Git workflow
 
-### `resume-after-restart`
-A V1 recovery flow for gateway restarts that:
-- avoids polluting the visible session with BOOT noise
-- resumes pending tasks in hidden recovery sessions
-- mirrors recovery results back into the original session
+This repo follows the conventions defined in `skills/git-workflow/SKILL.md`:
 
-Important: this is **not** the final durability architecture. It is a controlled-restart recovery layer, not a full replacement for storage-backed session continuity.
-
-### `patch-openclaw-weixin.sh`
-A reusable patch script to repair extension compatibility after OpenClaw upgrades when SDK import paths drift.
-
-### `openclaw-v2-roadmap.md`
-A forward-looking design document covering:
-- low-cost retrieval strategy
-- browser/code/RSS/RAG capability roadmap
-- durable session storage direction
-- transition away from restart-only recovery heuristics
-
-## Updating this backup
-
-Recommended workflow for future updates:
-
-1. Update the local staging repo at:
-   - `/home/xtrao/.openclaw/backup-staging/azurevm-openclaw-backup`
-2. Review for secrets before committing.
-3. Commit locally.
-4. Push to this private GitHub repo when the milestone is worth preserving remotely.
+- **Conventional commits:** `type(scope): subject`
+- **Feature branches + PR:** Never push directly to `main`
+- **Cross-model code review:** PR author and reviewer use different models
+- **Human approval required:** Agents do not merge their own PRs
+- **Committer identity:** Set to model name (e.g. `claude-opus-4.6`)
 
 ## Security note
 
-This repo is private, but still assume anything pushed here may eventually be inspected by humans or automation.
-Do not store live secrets here unless you intentionally choose to do so.
+This repo is private, but assume anything pushed here may eventually be inspected.
+Do not store live secrets here.

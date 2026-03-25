@@ -114,23 +114,35 @@ fi
 # 2. Review what's staged
 git diff --cached --stat
 
-# 3. Check for secrets or sensitive content in staged files
-git diff --cached --name-only
+# 3. Scan staged content for potential secrets
+#    (This is a basic grep check, not a substitute for dedicated secret scanners)
+git diff --cached | grep -iE '(password|secret|token|api_key|private_key|BEGIN RSA|BEGIN OPENSSH)' && echo "WARNING: Possible secret detected in staged changes — review before committing"
 ```
 
 Do not commit files containing tokens, passwords, API keys, or other secrets unless the repo is explicitly private and the user has approved it.
 
 ## Standard Workflow (MANDATORY)
 
-Every code change follows this 5-step flow. No exceptions.
+Every code change follows this 5-step flow.
 
-### Step 1: Create a Feature Branch
+### Step 1: Get on a Feature Branch
+
+**Starting new work:**
 
 ```bash
 DEFAULT=$(git remote show origin | sed -n 's/.*HEAD branch: //p')
 git fetch origin
 git checkout -b <type>/<description> origin/$DEFAULT
 ```
+
+**Continuing work on an existing PR branch:**
+
+```bash
+git checkout <existing-branch>
+git pull origin <existing-branch>
+```
+
+If you already have local changes on the correct feature branch, skip this step.
 
 ### Step 2: Commit & Push to Feature Branch
 
@@ -165,26 +177,16 @@ gh pr create \
 
 ### Step 4: Automated Code Review (Sub-Agent)
 
-After the PR is created, spawn a reviewer sub-agent to review the PR:
+After the PR is created, spawn a reviewer sub-agent to review the PR.
 
-```
-Use sessions_spawn to create a reviewer session with this task:
+The reviewer should be a separate session (use `sessions_spawn` in OpenClaw, or any equivalent isolated sub-agent mechanism). The key requirements are:
 
-"Review PR #<number> on <owner/repo>.
-Run: gh pr diff <number> --repo <owner/repo>
-Read the diff carefully and post review comments using:
-gh pr review <number> --repo <owner/repo> --comment --body '<your review>'
+1. The reviewer reads the PR diff: `gh pr diff <number> --repo <owner/repo>`
+2. The reviewer posts comments: `gh pr review <number> --repo <owner/repo> --comment --body '<review>'`
+3. The reviewer focuses on: correctness, style consistency, missing edge cases, security concerns, naming, readability
+4. The reviewer does **NOT** approve or merge — only leaves comments
 
-Focus on:
-- Correctness and logic errors
-- Style consistency with the rest of the codebase
-- Missing edge cases or error handling
-- Security concerns (secrets, injection, unsafe operations)
-- Naming, readability, and structure
-
-Be specific. Reference file names and line numbers.
-Do NOT approve or merge. Only leave comments."
-```
+If `sessions_spawn` is not available in your environment, you may manually review the diff and post comments, but always as a separate review step before declaring the PR ready.
 
 ### Step 5: Address Review Comments & Wait for Human Approval
 

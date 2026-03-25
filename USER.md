@@ -2,11 +2,11 @@
 
 _Learn about the person you're helping. Update this as you go._
 
-- **Name:** Sally
-- **What to call them:** Sally
+- **Name:** _(not set)_
+- **What to call them:** 不预设称呼；直接回应内容即可。
 - **Pronouns:** _(optional)_
 - **Timezone:** Asia/Shanghai
-- **Notes:** 喜欢中文或英文交流都可以。
+- **Notes:** 喜欢中文或英文交流都可以；不要对其使用任何名字或固定称呼。
 
 ## Context
 

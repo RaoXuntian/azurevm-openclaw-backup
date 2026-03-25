@@ -1,8 +1,8 @@
 # azurevm-openclaw-backup
 
-Private backup of the OpenClaw deployment on `azurevm`.
+Private, sanitized backup of the OpenClaw deployment on `azurevm`.
 
-This repo preserves the files needed to rebuild, debug, or evolve the current setup — without exposing live secrets.
+This repo preserves the files needed to rebuild, debug, or evolve the current setup. Live credentials are excluded; some operational metadata (e.g. public URLs, file paths) is retained for restore convenience.
 
 ## What this repo is for
 
@@ -16,9 +16,15 @@ Use it as a **reference and restore aid**, not as a full machine image.
 
 ## Repository layout
 
+The repo has two agent workspaces: `workspace/` belongs to the `main` agent (general assistant), and `workspace-coding/` belongs to the `coding` agent (code/design work). Shared skills under `skills/` are available to all agents.
+
 ```text
 .
 ├── README.md
+├── .gitignore
+├── IDENTITY.md                        # Live workspace identity (main agent)
+├── MEMORY.md                          # Long-term curated memory (main agent)
+├── USER.md                            # User profile (main agent)
 ├── config/
 │   └── openclaw.redacted.json        # Redacted config (structure only, no secrets)
 ├── extensions/
@@ -97,11 +103,12 @@ These are installed at `~/.openclaw/skills/` on the host and available to **all 
 
 ## Excluded on purpose
 
-- `memory/` daily notes (only selected snapshots included)
 - `.env` files, raw API keys, passwords, tokens, cookies
 - Device identity, pairing, and approval state
 - Full workspace git history
 - Unredacted `openclaw.json`
+
+**Note on memory files:** `MEMORY.md` at the repo root is the main agent's curated long-term memory and is intentionally included (it contains operational context, not secrets). The `memory/` directory contains selected daily-note snapshots; most daily notes are not backed up here.
 
 ## Git workflow
 

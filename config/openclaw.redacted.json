@@ -1,0 +1,185 @@
+{
+  "meta": {
+    "lastTouchedVersion": "2026.3.23-2",
+    "lastTouchedAt": "2026-03-24T04:14:15.630Z"
+  },
+  "wizard": {
+    "lastRunAt": "2026-03-22T11:02:18.750Z",
+    "lastRunVersion": "2026.3.13",
+    "lastRunCommand": "configure",
+    "lastRunMode": "local"
+  },
+  "auth": {
+    "profiles": {
+      "github-copilot:github": {
+        "provider": "github-copilot",
+        "mode": "token"
+      }
+    }
+  },
+  "agents": {
+    "defaults": {
+      "model": {
+        "primary": "github-copilot/gpt-5.4",
+        "fallbacks": [
+          "github-copilot/gpt-5.4",
+          "github-copilot/claude-opus-4.6",
+          "github-copilot/claude-sonnet-4.6",
+          "github-copilot/gemini-2.5-pro",
+          "github-copilot/gemini-3.1-pro-preview",
+          "github-copilot/gpt-5.3-codex",
+          "github-copilot/grok-code-fast-1"
+        ]
+      },
+      "models": {
+        "github-copilot/gpt-5.4": {},
+        "github-copilot/claude-opus-4.6": {},
+        "github-copilot/claude-sonnet-4.6": {},
+        "github-copilot/gemini-2.5-pro": {},
+        "github-copilot/gemini-3.1-pro-preview": {},
+        "github-copilot/gpt-5.3-codex": {},
+        "github-copilot/grok-code-fast-1": {},
+        "github-copilot/gpt-4o": {}
+      },
+      "workspace": "/home/xtrao/.openclaw/workspace",
+      "compaction": {
+        "mode": "safeguard"
+      }
+    }
+  },
+  "tools": {
+    "profile": "coding",
+    "web": {
+      "search": {
+        "enabled": true,
+        "provider": "gemini",
+        "timeoutSeconds": 20,
+        "cacheTtlMinutes": 120
+      }
+    }
+  },
+  "bindings": [
+    {
+      "agentId": "main",
+      "match": {
+        "channel": "imessage",
+        "accountId": "default"
+      }
+    }
+  ],
+  "commands": {
+    "native": "auto",
+    "nativeSkills": "auto",
+    "restart": true,
+    "ownerDisplay": "raw"
+  },
+  "session": {
+    "dmScope": "per-account-channel-peer"
+  },
+  "hooks": {
+    "internal": {
+      "enabled": true,
+      "entries": {
+        "boot-md": {
+          "enabled": false
+        },
+        "bootstrap-extra-files": {
+          "enabled": true
+        },
+        "command-logger": {
+          "enabled": true
+        },
+        "session-memory": {
+          "enabled": true
+        },
+        "resume-after-restart": {
+          "enabled": true
+        }
+      }
+    }
+  },
+  "channels": {
+    "imessage": {
+      "enabled": true,
+      "cliPath": "imsg",
+      "dmPolicy": "pairing",
+      "groupPolicy": "allowlist"
+    },
+    "openclaw-weixin": {}
+  },
+  "gateway": {
+    "port": 18789,
+    "mode": "local",
+    "bind": "loopback",
+    "controlUi": {
+      "allowedOrigins": [
+        "https://azurevm.tail65b682.ts.net"
+      ]
+    },
+    "auth": {
+      "mode": "password",
+      "token": "<REDACTED>",
+      "password": "<REDACTED>",
+      "allowTailscale": false
+    },
+    "tailscale": {
+      "mode": "funnel",
+      "resetOnExit": false
+    },
+    "nodes": {
+      "denyCommands": [
+        "camera.snap",
+        "camera.clip",
+        "screen.record",
+        "contacts.add",
+        "calendar.add",
+        "reminders.add",
+        "sms.send"
+      ]
+    }
+  },
+  "skills": {
+    "entries": {
+      "goplaces": {
+        "apiKey": "<REDACTED>"
+      },
+      "nano-banana-pro": {
+        "apiKey": "<REDACTED>"
+      }
+    }
+  },
+  "plugins": {
+    "allow": [
+      "openclaw-weixin"
+    ],
+    "entries": {
+      "openclaw-weixin": {
+        "enabled": true
+      },
+      "google": {
+        "enabled": true,
+        "config": {
+          "webSearch": {
+            "apiKey": "<REDACTED>",
+            "model": "gemini-2.5-flash"
+          }
+        }
+      }
+    },
+    "installs": {
+      "openclaw-weixin": {
+        "source": "npm",
+        "spec": "@tencent-weixin/openclaw-weixin",
+        "installPath": "/home/xtrao/.openclaw/extensions/openclaw-weixin",
+        "version": "1.0.3",
+        "resolvedName": "@tencent-weixin/openclaw-weixin",
+        "resolvedVersion": "1.0.3",
+        "resolvedSpec": "@tencent-weixin/openclaw-weixin@1.0.3",
+        "integrity": "sha512-TOo9rb5gt3ce3lJEulFT5Ta4/8ocWkR40wzM7lZ8OM3/fjTk3UHYeNjHmDcZlLeg93XYJKdVUFUEiujrf8zMYw==",
+        "shasum": "<REDACTED>",
+        "resolvedAt": "2026-03-24T03:34:35.679Z",
+        "installedAt": "2026-03-24T03:34:47.228Z"
+      }
+    }
+  }
+}

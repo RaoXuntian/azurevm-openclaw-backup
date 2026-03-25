@@ -216,10 +216,11 @@ Example: if the PR was authored by `claude-opus-4.6`, the reviewer should be `gp
 
 The reviewer should be a separate session (use `sessions_spawn` with the `model` parameter in OpenClaw, or any equivalent isolated sub-agent mechanism). The key requirements are:
 
-1. The reviewer reads the PR diff: `gh pr diff <number> --repo <owner/repo>`
-2. The reviewer posts comments: `gh pr review <number> --repo <owner/repo> --comment --body '<review>'`
-3. The reviewer focuses on: correctness, style consistency, missing edge cases, security concerns, naming, readability
-4. The reviewer does **NOT** approve or merge — only leaves comments
+1. **Tell the reviewer who authored the PR.** Include the author model name in the task description so the reviewer knows whose code they are reviewing (e.g. "This PR was authored by claude-opus-4.6"). This context helps the reviewer calibrate their review for model-specific blind spots.
+2. The reviewer reads the PR diff: `gh pr diff <number> --repo <owner/repo>`
+3. The reviewer posts comments: `gh pr review <number> --repo <owner/repo> --comment --body '<review>'`
+4. The reviewer focuses on: correctness, style consistency, missing edge cases, security concerns, naming, readability
+5. The reviewer does **NOT** approve or merge — only leaves comments
 
 If `sessions_spawn` is not available in your environment, you may manually review the diff and post comments, but always as a separate review step before declaring the PR ready.
 

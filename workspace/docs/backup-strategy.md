@@ -215,6 +215,7 @@ Unless the user says otherwise:
 3. Important infra fix → document + commit.
 4. Important machine-level change → update private backup repo.
 5. If a GitHub repo already exists, prefer pushing milestone fixes instead of leaving them only local.
+6. Follow `skills/git-workflow/SKILL.md`: feature branches, PRs, cross-model review, human approval before merge.
 
 ---
 

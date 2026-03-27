@@ -41,13 +41,13 @@ def _fetch(url, timeout=15):
                 return data.decode(m.group(1))
             except (UnicodeDecodeError, LookupError):
                 pass
-    # Fallback chain: utf-8 -> gbk -> latin-1
+    # Fallback chain: utf-8 -> gbk (latin-1 always succeeds, so no final fallback needed)
     for enc in ("utf-8", "gbk", "latin-1"):
         try:
             return data.decode(enc)
         except (UnicodeDecodeError, LookupError):
             continue
-    return data.decode("utf-8", errors="replace")
+    return data.decode("utf-8", errors="replace")  # pragma: no cover
 
 
 def _strip_tags(s):
@@ -119,7 +119,6 @@ def crawl_hackernews(limit=10):
 
 def crawl_36kr(limit=10):
     """Crawl 36Kr newsflashes (36氪快讯)."""
-    partial = False
     try:
         url = "https://gateway.36kr.com/api/missive/flow/newsflash/catalog/list"
         payload = json.dumps({
@@ -149,7 +148,6 @@ def crawl_36kr(limit=10):
     except Exception as e:
         # Fallback: try scraping HTML
         print(f"[WARN] 36kr API failed ({e}), falling back to HTML scraping", file=sys.stderr)
-        partial = True
         try:
             text = _fetch("https://36kr.com/newsflashes")
             items = re.findall(r'newsflash-item.*?href="(/newsflashes/\d+)"[^>]*>([^<]+)', text, re.DOTALL)
@@ -196,22 +194,32 @@ def crawl_producthunt(limit=10):
     """Crawl Product Hunt homepage (best effort)."""
     try:
         text = _fetch("https://www.producthunt.com/")
-        matches = re.findall(
-            r'data-test="post-name"[^>]*>([^<]+)</a>',
+        # Try to extract post slug + name from anchor tags with data-test="post-name"
+        slug_matches = re.findall(
+            r'href="(/posts/([^"?#]+))"[^>]*data-test="post-name"[^>]*>([^<]+)</a>',
             text
         )
-        if not matches:
-            matches_pair = re.findall(r'"name":"([^"]{2,80})","tagline":"([^"]*)"', text)
-            if matches_pair:
-                return [_std(
-                    title=n, url="https://www.producthunt.com", source="producthunt",
-                    summary=t,
-                ) for n, t in matches_pair[:limit]]
-            if text and len(text) > 1000:
-                return [_zero_results_error("producthunt")]
-            return [{"error": "Product Hunt uses JS rendering; could not extract products.", "source": "producthunt"}]
-        return [_std(title=m, url="https://www.producthunt.com", source="producthunt")
-                for m in matches[:limit]]
+        if slug_matches:
+            return [_std(
+                title=_unescape(name.strip()),
+                url=f"https://www.producthunt.com{href}",
+                source="producthunt",
+            ) for href, _slug, name in slug_matches[:limit]]
+        # Fallback: name-only match (no reliable per-product URL)
+        name_only = re.findall(r'data-test="post-name"[^>]*>([^<]+)</a>', text)
+        if name_only:
+            return [_std(title=_unescape(m.strip()), url="https://www.producthunt.com", source="producthunt")
+                    for m in name_only[:limit]]
+        # JSON embedded data fallback
+        matches_pair = re.findall(r'"name":"([^"]{2,80})","tagline":"([^"]*)"', text)
+        if matches_pair:
+            return [_std(
+                title=n, url="https://www.producthunt.com", source="producthunt",
+                summary=t,
+            ) for n, t in matches_pair[:limit]]
+        if text and len(text) > 1000:
+            return [_zero_results_error("producthunt")]
+        return [{"error": "Product Hunt uses JS rendering; could not extract products.", "source": "producthunt"}]
     except Exception as e:
         return [{"error": f"Product Hunt crawl failed: {e}", "source": "producthunt"}]
 
@@ -219,7 +227,7 @@ def crawl_producthunt(limit=10):
 def crawl_zhihu_hot(limit=10):
     """Crawl Zhihu Hot list (知乎热榜)."""
     try:
-        text = _fetch("https://www.zhihu.com/api/v3/feed/topstory/hot-lists/total?limit={}&desktop=true".format(limit))
+        text = _fetch(f"https://www.zhihu.com/api/v3/feed/topstory/hot-lists/total?limit={limit}&desktop=true")
         data = json.loads(text)
         results = []
         for item in data.get("data", [])[:limit]:

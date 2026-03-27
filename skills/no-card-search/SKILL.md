@@ -1,149 +1,149 @@
 ---
 name: no-card-search
-description: Lightweight no-credit-card fallback search for web, news, Wikipedia, and arXiv using public endpoints plus official news RSS feeds where available. Use when web_search is unavailable, Gemini is rate-limited (429), the user has no paid search API, or you need low-cost search before fetching/summarizing pages. Good triggers: "search without API billing", "Gemini 429", "no credit card", "find recent news", "global news brief", "bilingual news brief", "look up a concept", "search papers", or "search site:example.com".
+description: >
+  Zero-cost information retrieval: web search, news, Wikipedia, arXiv, HackerNews,
+  GitHub Trending, site crawlers, and browser-based search fallback — all without
+  paid APIs. Use as the PRIMARY search method before web_search. Use when searching
+  the web, finding news, looking up concepts, browsing tech trends, or crawling
+  specific sites. Good triggers: "search", "find", "news", "what's trending",
+  "HackerNews", "GitHub trending", "crawl", "look up", "search papers",
+  "global news brief", "bilingual news brief", "tech brief".
 ---
 
-# No Card Search
+# No Card Search v2
 
-Use this skill as a fallback layer behind native `web_search`.
+Zero-cost information retrieval for agents. **Use this as the primary search method; `web_search` is the fallback.**
+
+## Scripts
+
+| Script | Purpose |
+|--------|---------|
+| `scripts/search.py` | Multi-mode search: web, news, wiki, arxiv, hn, github |
+| `scripts/browser_search.py` | DuckDuckGo/Bing HTML search (browser-free fallback) |
+| `scripts/crawlers.py` | Site-specific crawlers: HN, 36kr, TechCrunch, ProductHunt, Zhihu |
+| `scripts/news_brief.py` | Auto bilingual news brief generator |
 
 ## Quick start
 
-Search only:
-
 ```bash
-python3 /home/xtrao/.openclaw/skills/no-card-search/scripts/search.py --mode web "OpenClaw GitHub"
-python3 /home/xtrao/.openclaw/skills/no-card-search/scripts/search.py --mode news "OpenAI" --days 7
-python3 /home/xtrao/.openclaw/skills/no-card-search/scripts/search.py --mode wiki "Retrieval-augmented generation"
-python3 /home/xtrao/.openclaw/skills/no-card-search/scripts/search.py --mode arxiv "retrieval augmented generation"
+# Web search (Bing RSS)
+python3 scripts/search.py --mode web "OpenClaw GitHub"
+
+# News (Google News RSS + official feeds)
+python3 scripts/search.py --mode news "world" --hours 6 --use-feeds
+
+# HackerNews top stories
+python3 scripts/search.py --mode hn --limit 10
+
+# GitHub Trending
+python3 scripts/search.py --mode github --limit 10 --language python
+
+# Wikipedia lookup
+python3 scripts/search.py --mode wiki "Retrieval-augmented generation"
+
+# arXiv papers
+python3 scripts/search.py --mode arxiv "mixture of experts"
+
+# Browser-based search (DDG → Bing fallback)
+python3 scripts/browser_search.py "query" --limit 5
+
+# Site crawlers
+python3 scripts/crawlers.py --site hn --limit 10
+python3 scripts/crawlers.py --site techcrunch --limit 10
+python3 scripts/crawlers.py --site 36kr --limit 10
+python3 scripts/crawlers.py --site all --limit 5
+
+# Auto bilingual news brief
+python3 scripts/news_brief.py --use-feeds --source-preset global --hours 6
 ```
 
-Auto-brief:
+## Search modes (search.py)
+
+| Mode | Backend | Best for |
+|------|---------|----------|
+| `web` | Bing RSS | General web search, docs, repos |
+| `news` | Google News RSS + official feeds | Recent news, headlines |
+| `wiki` | Wikipedia OpenSearch | Concepts, entities, definitions |
+| `arxiv` | arXiv API | Academic papers |
+| `hn` | HackerNews Firebase API | Tech community trends |
+| `github` | GitHub Trending HTML | Open source trends, repos |
+
+## Browser search (browser_search.py)
+
+Fallback when all other methods fail. Fetches and parses search engine HTML directly.
+
+- **Primary:** DuckDuckGo HTML (`html.duckduckgo.com`)
+- **Fallback:** Bing HTML
+- DDG may serve CAPTCHAs in some environments; Bing fallback handles this
 
 ```bash
-python3 /home/xtrao/.openclaw/skills/no-card-search/scripts/news_brief.py --use-feeds
+python3 scripts/browser_search.py "query" --limit 5 --json
 ```
 
-## Search modes
+## Site crawlers (crawlers.py)
 
-### 1. General web search
-Use `search.py --mode web`.
+Direct crawlers for popular sites. Unified output format with consistent JSON envelope.
 
-- Backend: Bing RSS search
-- Best for: docs, homepages, product pages, official repos, basic site filtering
+| Site | Source | Reliability |
+|------|--------|-------------|
+| `hn` | HackerNews HTML | ✅ Stable |
+| `techcrunch` | TechCrunch RSS | ✅ Stable |
+| `36kr` | 36Kr API + HTML fallback | 🟡 API may fail, HTML fallback |
+| `producthunt` | ProductHunt HTML | 🟡 JS-heavy, may fail |
+| `zhihu` | Zhihu API + HTML | 🔴 Anti-bot, often blocked |
 
 ```bash
-python3 /home/xtrao/.openclaw/skills/no-card-search/scripts/search.py --mode web "OpenClaw docs" --site docs.openclaw.ai
+python3 scripts/crawlers.py --site hn --limit 5 --json
+python3 scripts/crawlers.py --site all --limit 3 --json
+python3 scripts/crawlers.py --list-sites
 ```
 
-### 2. Recent news search
-Use `search.py --mode news`.
-
-Backends:
-- Google News RSS
-- Official source feeds when `--use-feeds` is enabled and a source has a known RSS feed
-
-```bash
-python3 /home/xtrao/.openclaw/skills/no-card-search/scripts/search.py --mode news --hours 6 "world"
+JSON output format (single site):
+```json
+{"source": "hn", "items": [...], "error": null}
 ```
 
-### 3. Entity / concept lookup
-Use `search.py --mode wiki`.
-
-```bash
-python3 /home/xtrao/.openclaw/skills/no-card-search/scripts/search.py --mode wiki "OpenAI" --wiki-lang en
+JSON output format (all sites):
+```json
+{"sites": {"hn": {"items": [...], "error": null}, ...}}
 ```
 
-### 4. Paper search
-Use `search.py --mode arxiv`.
+## News sources
 
-```bash
-python3 /home/xtrao/.openclaw/skills/no-card-search/scripts/search.py --mode arxiv "Mixture of Experts"
-```
+Curated sources with optional RSS feeds:
 
-## Curated news sources
+| Source | Feed | Notes |
+|--------|------|-------|
+| reuters | site-filtered | via Google News |
+| bbc | ✅ RSS | BBC World |
+| ap | site-filtered | via Google News |
+| cnn | ✅ RSS | CNN World |
+| fox | ✅ RSS | Fox World |
+| nytimes | ✅ RSS | NYT World |
+| cctv | site-filtered | via Google News |
+| xinhua | ✅ RSS | 新华社 Politics |
+| cailianshe | site-filtered | 财联社 via Google News |
+| thepaper | site-filtered | 澎湃新闻 via Google News |
 
-Supported named sources:
-- `reuters`
-- `bbc`
-- `ap`
-- `cnn`
-- `fox`
-- `nytimes`
-- `cctv`
+Source presets: `global`, `western`, `china`
 
-Source presets:
-- `global`
-- `western`
-- `china`
+## Search priority (for agents)
 
-Preferred global brief search:
-
-```bash
-python3 /home/xtrao/.openclaw/skills/no-card-search/scripts/search.py \
-  --mode news \
-  --source-preset global \
-  --use-feeds \
-  --hours 6 \
-  --limit 12 \
-  --per-source-limit 2
-```
-
-## Auto bilingual brief workflow
-
-Use `news_brief.py` when the user wants a finished **global news brief** instead of raw search results.
-
-What it does:
-- runs multiple subqueries automatically (for example global brief + Iran + markets + China policy)
-- merges results across sources
-- dedupes repeated headlines
-- filters common noise (sports / celebrity / low-signal items)
-- clusters stories into themes
-- outputs **中文简报 + English Brief**
-
-Recommended command:
-
-```bash
-python3 /home/xtrao/.openclaw/skills/no-card-search/scripts/news_brief.py \
-  --use-feeds \
-  --source-preset global \
-  --hours 6
-```
-
-## Best practices
-
-1. If native `web_search` is healthy and cheap enough, use it.
-2. If Gemini is 429 / no paid API is available / the user explicitly wants a no-card path, use this skill.
-3. For global briefs, prefer `news_brief.py --use-feeds --source-preset global --hours N`.
-4. For raw search exploration, use `search.py` first, then `web_fetch` only the top URLs worth reading.
-5. For final brief output, present the generated **Chinese brief first, then English brief**.
+1. **Primary:** `no-card-search` scripts (this skill)
+2. **Fallback:** `web_search` (Gemini) — only when this skill's results are insufficient
+3. **Never retry** `web_search` on 429 — use this skill instead
 
 ## Useful flags
 
 ### search.py
-- `--limit`
-- `--site example.com`
-- `--sources reuters,bbc,...`
-- `--source-preset global|western|china`
-- `--use-feeds`
-- `--per-source-limit`
-- `--days N`
-- `--hours N`
-- `--query-preset global-brief|china-brief|tech-brief`
-- `--json`
+`--mode`, `--limit`, `--site`, `--sources`, `--source-preset`, `--use-feeds`,
+`--per-source-limit`, `--days`, `--hours`, `--query-preset`, `--language` (github only), `--json`
+
+### browser_search.py
+`--limit`, `--json`
+
+### crawlers.py
+`--site`, `--limit`, `--json`, `--list-sites`
 
 ### news_brief.py
-- `--hours N`
-- `--days N`
-- `--source-preset`
-- `--sources`
-- `--use-feeds`
-- `--max-themes`
-- `--json`
-
-## Notes
-
-- This skill uses public endpoints, so reliability is best-effort.
-- Official feeds improve quality, but not every source exposes a clean public RSS feed.
-- Google News RSS links may be redirect-style links; use `web_fetch` on directly usable article URLs when possible.
-- The automatic brief is much cleaner than raw aggregation, but still not equal to a paid research API.
+`--hours`, `--days`, `--source-preset`, `--sources`, `--use-feeds`, `--max-themes`, `--json`

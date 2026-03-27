@@ -42,12 +42,12 @@ def _fetch(url, timeout=15):
             except (UnicodeDecodeError, LookupError):
                 pass
     # Fallback chain: utf-8 -> gbk -> latin-1
-    for enc in ("utf-8", "gbk", "latin-1"):
+    for enc in ("utf-8", "gbk"):
         try:
             return data.decode(enc)
         except (UnicodeDecodeError, LookupError):
             continue
-    return data.decode("utf-8", errors="replace")
+    return data.decode("latin-1")
 
 
 def _strip_tags(s):
@@ -119,7 +119,6 @@ def crawl_hackernews(limit=10):
 
 def crawl_36kr(limit=10):
     """Crawl 36Kr newsflashes (36氪快讯)."""
-    partial = False
     try:
         url = "https://gateway.36kr.com/api/missive/flow/newsflash/catalog/list"
         payload = json.dumps({
@@ -201,15 +200,20 @@ def crawl_producthunt(limit=10):
             text
         )
         if not matches:
-            matches_pair = re.findall(r'"name":"([^"]{2,80})","tagline":"([^"]*)"', text)
+            matches_pair = re.findall(r'"name":"([^"]{2,80})","tagline":"([^"]*)"(?:.*?"slug":"([^"]*)")?', text)
             if matches_pair:
                 return [_std(
-                    title=n, url="https://www.producthunt.com", source="producthunt",
+                    title=n, url=f"https://www.producthunt.com/posts/{s}" if s else "https://www.producthunt.com", source="producthunt",
                     summary=t,
-                ) for n, t in matches_pair[:limit]]
+                ) for n, t, s in matches_pair[:limit]]
             if text and len(text) > 1000:
                 return [_zero_results_error("producthunt")]
             return [{"error": "Product Hunt uses JS rendering; could not extract products.", "source": "producthunt"}]
+        # Try extracting product URLs from data-test links
+        url_matches = re.findall(r'href="(/posts/[^"]+)"[^>]*data-test="post-name"[^>]*>([^<]+)', text)
+        if url_matches:
+            return [_std(title=name.strip(), url=f"https://www.producthunt.com{path}", source="producthunt")
+                    for path, name in url_matches[:limit]]
         return [_std(title=m, url="https://www.producthunt.com", source="producthunt")
                 for m in matches[:limit]]
     except Exception as e:
@@ -219,7 +223,7 @@ def crawl_producthunt(limit=10):
 def crawl_zhihu_hot(limit=10):
     """Crawl Zhihu Hot list (知乎热榜)."""
     try:
-        text = _fetch("https://www.zhihu.com/api/v3/feed/topstory/hot-lists/total?limit={}&desktop=true".format(limit))
+        text = _fetch(f"https://www.zhihu.com/api/v3/feed/topstory/hot-lists/total?limit={limit}&desktop=true")
         data = json.loads(text)
         results = []
         for item in data.get("data", [])[:limit]:

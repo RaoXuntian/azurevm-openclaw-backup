@@ -23,7 +23,7 @@ NEWS_SOURCES = {
     "fox": {"domain": "foxnews.com", "feed": "https://moxie.foxnews.com/google-publisher/world.xml"},
     "nytimes": {"domain": "nytimes.com", "feed": "https://rss.nytimes.com/services/xml/rss/nyt/World.xml"},
     "cctv": {"domain": "cctv.com", "feed": None},
-    "xinhua": {"domain": "news.cn", "feed": "http://www.xinhuanet.com/politics/news_politics.xml"},
+    "xinhua": {"domain": "news.cn", "feed": "https://www.xinhuanet.com/politics/news_politics.xml"},
     "cailianshe": {"domain": "cls.cn", "feed": None},
     "thepaper": {"domain": "thepaper.cn", "feed": None},
 }
@@ -41,9 +41,23 @@ QUERY_PRESETS = {
 
 
 def fetch_text(url: str, timeout: int = 20) -> str:
+    """Fetch URL text with charset-aware decoding."""
     req = Request(url, headers={"User-Agent": UA, "Accept-Language": "en-US,en;q=0.9,zh-CN;q=0.8"})
     with urlopen(req, timeout=timeout) as resp:
-        return resp.read().decode("utf-8", "ignore")
+        data = resp.read()
+        ct = resp.headers.get("Content-Type", "")
+        m = re.search(r"charset=([^\s;]+)", ct, re.I)
+        if m:
+            try:
+                return data.decode(m.group(1))
+            except (UnicodeDecodeError, LookupError):
+                pass
+        for enc in ("utf-8", "gbk"):
+            try:
+                return data.decode(enc)
+            except (UnicodeDecodeError, LookupError):
+                continue
+        return data.decode("utf-8", errors="replace")
 
 
 def clean(text: Optional[str]) -> str:

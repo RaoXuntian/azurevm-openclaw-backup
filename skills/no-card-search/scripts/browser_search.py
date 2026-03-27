@@ -5,6 +5,7 @@ Uses only Python stdlib. No API keys required.
 """
 
 import argparse
+import base64
 import json
 import re
 import sys
@@ -50,7 +51,6 @@ def _extract_bing_url(href):
             if decoded.startswith("a!"):
                 decoded = decoded[2:]
             elif decoded.startswith("a1"):
-                import base64
                 try:
                     decoded = base64.b64decode(decoded[2:] + "==").decode("utf-8", errors="replace")
                 except Exception:

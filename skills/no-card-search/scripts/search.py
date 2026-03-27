@@ -9,6 +9,7 @@ from html import unescape
 from textwrap import shorten
 from typing import Dict, List, Optional
 from urllib.parse import quote
+from urllib.error import URLError
 from urllib.request import Request, urlopen
 import xml.etree.ElementTree as ET
 
@@ -22,21 +23,25 @@ NEWS_SOURCES = {
     "fox": {"domain": "foxnews.com", "feed": "https://moxie.foxnews.com/google-publisher/world.xml"},
     "nytimes": {"domain": "nytimes.com", "feed": "https://rss.nytimes.com/services/xml/rss/nyt/World.xml"},
     "cctv": {"domain": "cctv.com", "feed": None},
+    "xinhua": {"domain": "news.cn", "feed": "http://www.xinhuanet.com/politics/news_politics.xml"},
+    "cailianshe": {"domain": "cls.cn", "feed": None},
+    "thepaper": {"domain": "thepaper.cn", "feed": None},
 }
 SOURCE_PRESETS = {
-    "global": ["reuters", "bbc", "ap", "cnn", "fox", "nytimes", "cctv"],
+    "global": ["reuters", "bbc", "ap", "cnn", "fox", "nytimes", "cctv", "xinhua", "cailianshe", "thepaper"],
     "western": ["reuters", "bbc", "ap", "cnn", "fox", "nytimes"],
-    "china": ["cctv"],
+    "china": ["cctv", "xinhua", "cailianshe", "thepaper"],
 }
 QUERY_PRESETS = {
     "global-brief": "world news -sports -baseball -olympic -entertainment -celebrity",
     "china-brief": "China world economy diplomacy trade policy -sports -entertainment",
     "tech-brief": "AI chips cloud software regulation startups -sports -entertainment",
+    "china-news-brief": "中国 经济 政策 科技 -体育 -娱乐",
 }
 
 
 def fetch_text(url: str, timeout: int = 20) -> str:
-    req = Request(url, headers={"User-Agent": UA, "Accept-Language": "en-US,en;q=0.9"})
+    req = Request(url, headers={"User-Agent": UA, "Accept-Language": "en-US,en;q=0.9,zh-CN;q=0.8"})
     with urlopen(req, timeout=timeout) as resp:
         return resp.read().decode("utf-8", "ignore")
 
@@ -200,23 +205,26 @@ def search_news(query: str, limit: int, site: Optional[str], sources: List[str],
         each_limit = max(1, min(per_source_limit, 10))
         for source_name in sources:
             meta = NEWS_SOURCES[source_name]
-            if use_feeds and meta.get('feed'):
-                source_items = fetch_source_feed(meta['feed'], each_limit, source_name, timeout)
-                source_items = filter_recent(source_items, days, hours)
-                merged.extend(source_items[:each_limit])
-            else:
-                merged.extend(search_news_single(
-                    query=query,
-                    limit=each_limit,
-                    site=meta.get('domain'),
-                    days=days,
-                    hours=hours,
-                    hl=hl,
-                    gl=gl,
-                    ceid=ceid,
-                    timeout=timeout,
-                    source_label=source_name,
-                ))
+            try:
+                if use_feeds and meta.get('feed'):
+                    source_items = fetch_source_feed(meta['feed'], each_limit, source_name, timeout)
+                    source_items = filter_recent(source_items, days, hours)
+                    merged.extend(source_items[:each_limit])
+                else:
+                    merged.extend(search_news_single(
+                        query=query,
+                        limit=each_limit,
+                        site=meta.get('domain'),
+                        days=days,
+                        hours=hours,
+                        hl=hl,
+                        gl=gl,
+                        ceid=ceid,
+                        timeout=timeout,
+                        source_label=source_name,
+                    ))
+            except (URLError, TimeoutError, ValueError, ET.ParseError) as exc:
+                print(f"[warn] source '{source_name}' failed: {exc}", file=sys.stderr)
         merged = dedupe_items(merged)
         merged.sort(key=lambda item: parse_published(item.get("published", "")), reverse=True)
         return merged[:limit]
@@ -266,6 +274,93 @@ def search_arxiv(query: str, limit: int, timeout: int) -> List[Dict]:
     return items
 
 
+def search_hn(limit: int, timeout: int) -> List[Dict]:
+    """Fetch top stories from HackerNews using the official Firebase API."""
+    try:
+        ids_url = "https://hacker-news.firebaseio.com/v0/topstories.json"
+        story_ids = json.loads(fetch_text(ids_url, timeout=timeout))
+        items = []
+        for sid in story_ids[:limit]:
+            try:
+                item_url = f"https://hacker-news.firebaseio.com/v0/item/{sid}.json"
+                story = json.loads(fetch_text(item_url, timeout=timeout))
+                if not story:
+                    continue
+                hn_url = f"https://news.ycombinator.com/item?id={sid}"
+                published = ""
+                if story.get("time"):
+                    published = datetime.fromtimestamp(story["time"], tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+                items.append({
+                    "title": clean(story.get("title", "")),
+                    "url": story.get("url") or hn_url,
+                    "snippet": f"Score: {story.get('score', 0)} | Comments: {story.get('descendants', 0)} | HN: {hn_url}",
+                    "published": published,
+                    "source": "hackernews",
+                })
+            except (URLError, TimeoutError, ValueError) as exc:
+                print(f"[warn] HN story {sid} fetch failed: {exc}", file=sys.stderr)
+                continue
+        return items
+    except (URLError, TimeoutError, ValueError) as exc:
+        print(f"[warn] HackerNews fetch failed: {exc}", file=sys.stderr)
+        return []
+
+
+def search_github_trending(limit: int, language: Optional[str], timeout: int) -> List[Dict]:
+    """Scrape GitHub Trending page for popular repositories."""
+    try:
+        url = "https://github.com/trending"
+        if language:
+            url = f"https://github.com/trending/{quote(language.lower())}"
+        html = fetch_text(url, timeout=timeout)
+        items = []
+        # Each repo row starts with Box-row">
+        rows = re.split(r'Box-row">', html)
+        for row in rows[1:]:  # skip before first row
+            if len(items) >= limit:
+                break
+            # Repo link inside <h2 class="h3 ..."><a ... href="/owner/repo" ...>
+            repo_match = re.search(r'<h2[^>]*>\s*<a[^>]*href="(/[^"]+)"', row, re.DOTALL)
+            if not repo_match:
+                continue
+            repo_path = repo_match.group(1).strip().lstrip("/")
+            repo_url = f"https://github.com/{repo_path}"
+            # Description: <p class="col-9 ...">...</p>
+            desc_match = re.search(r'<p\s+class="[^"]*col-9[^"]*"[^>]*>(.*?)</p>', row, re.DOTALL)
+            description = clean(desc_match.group(1)) if desc_match else ""
+            # Stars today: "N stars today"
+            stars_today_match = re.search(r'(\d[\d,]*)\s+stars\s+today', row)
+            stars_today = stars_today_match.group(1).replace(",", "") if stars_today_match else ""
+            # Total stars - look for stargazers link or standalone star count
+            total_stars_match = re.search(r'href="/[^"]+/stargazers"[^>]*>\s*(?:<[^>]+>\s*)*(\d[\d,]*)', row)
+            if not total_stars_match:
+                total_stars_match = re.search(r'class="[^"]*d-inline-block[^"]*"[^>]*>\s*(?:<[^>]+>\s*)*(\d[\d,]*)', row)
+            total_stars = total_stars_match.group(1).replace(",", "") if total_stars_match else ""
+            # Language
+            lang_match = re.search(r'<span\s+itemprop="programmingLanguage"[^>]*>([^<]+)</span>', row)
+            lang = clean(lang_match.group(1)) if lang_match else ""
+            snippet_parts = []
+            if description:
+                snippet_parts.append(description)
+            if lang:
+                snippet_parts.append(f"Language: {lang}")
+            if total_stars:
+                snippet_parts.append(f"Stars: {total_stars}")
+            if stars_today:
+                snippet_parts.append(f"Stars today: {stars_today}")
+            items.append({
+                "title": repo_path,
+                "url": repo_url,
+                "snippet": " | ".join(snippet_parts),
+                "published": "",
+                "source": "github-trending",
+            })
+        return items
+    except (URLError, TimeoutError, ValueError) as exc:
+        print(f"[warn] GitHub Trending fetch failed: {exc}", file=sys.stderr)
+        return []
+
+
 def print_markdown(mode: str, query: str, items: List[Dict]) -> None:
     print(f"# {mode} results")
     print(f"query: {query}")
@@ -293,7 +388,7 @@ def print_markdown(mode: str, query: str, items: List[Dict]) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(description="No-card fallback search for OpenClaw")
     parser.add_argument("query", nargs="?", default="", help="search query (optional for feed-based latest news runs)")
-    parser.add_argument("--mode", choices=["web", "news", "wiki", "arxiv"], default="web")
+    parser.add_argument("--mode", choices=["web", "news", "wiki", "arxiv", "hn", "github"], default="web")
     parser.add_argument("--limit", type=int, default=5)
     parser.add_argument("--site", help="optional site filter, e.g. reuters.com")
     parser.add_argument("--query-preset", choices=sorted(QUERY_PRESETS.keys()), help="named query preset for cleaner brief generation")
@@ -307,6 +402,7 @@ def main() -> int:
     parser.add_argument("--gl", default="US", help="Google News gl param")
     parser.add_argument("--ceid", default="US:en", help="Google News ceid param")
     parser.add_argument("--wiki-lang", default="en", help="Wikipedia language subdomain")
+    parser.add_argument("--language", help="programming language filter for GitHub trending mode")
     parser.add_argument("--timeout", type=int, default=20)
     parser.add_argument("--json", action="store_true", help="output JSON instead of markdown")
     args = parser.parse_args()
@@ -334,8 +430,14 @@ def main() -> int:
             )
         elif args.mode == "wiki":
             items = search_wiki(resolved_query, limit, args.wiki_lang, args.timeout)
-        else:
+        elif args.mode == "arxiv":
             items = search_arxiv(resolved_query, limit, args.timeout)
+        elif args.mode == "hn":
+            items = search_hn(limit, args.timeout)
+        elif args.mode == "github":
+            items = search_github_trending(limit, args.language, args.timeout)
+        else:
+            items = []
     except Exception as exc:
         print(json.dumps({"error": str(exc), "mode": args.mode, "query": resolved_query}, ensure_ascii=False))
         return 1

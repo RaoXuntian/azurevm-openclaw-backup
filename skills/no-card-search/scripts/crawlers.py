@@ -148,7 +148,6 @@ def crawl_36kr(limit=10):
     except Exception as e:
         # Fallback: try scraping HTML
         print(f"[WARN] 36kr API failed ({e}), falling back to HTML scraping", file=sys.stderr)
-        partial = True
         try:
             text = _fetch("https://36kr.com/newsflashes")
             items = re.findall(r'newsflash-item.*?href="(/newsflashes/\d+)"[^>]*>([^<]+)', text, re.DOTALL)
@@ -195,27 +194,34 @@ def crawl_producthunt(limit=10):
     """Crawl Product Hunt homepage (best effort)."""
     try:
         text = _fetch("https://www.producthunt.com/")
-        matches = re.findall(
-            r'data-test="post-name"[^>]*>([^<]+)</a>',
-            text
-        )
-        if not matches:
-            matches_pair = re.findall(r'"name":"([^"]{2,80})","tagline":"([^"]*)"(?:.*?"slug":"([^"]*)")?', text)
-            if matches_pair:
-                return [_std(
-                    title=n, url=f"https://www.producthunt.com/posts/{s}" if s else "https://www.producthunt.com", source="producthunt",
-                    summary=t,
-                ) for n, t, s in matches_pair[:limit]]
-            if text and len(text) > 1000:
-                return [_zero_results_error("producthunt")]
-            return [{"error": "Product Hunt uses JS rendering; could not extract products.", "source": "producthunt"}]
-        # Try extracting product URLs from data-test links
         url_matches = re.findall(r'href="(/posts/[^"]+)"[^>]*data-test="post-name"[^>]*>([^<]+)', text)
         if url_matches:
-            return [_std(title=name.strip(), url=f"https://www.producthunt.com{path}", source="producthunt")
-                    for path, name in url_matches[:limit]]
-        return [_std(title=m, url="https://www.producthunt.com", source="producthunt")
-                for m in matches[:limit]]
+            return [_std(
+                title=_unescape(name.strip()),
+                url=f"https://www.producthunt.com{path}",
+                source="producthunt",
+            ) for path, name in url_matches[:limit]]
+
+        matches_pair = re.findall(r'"name":"([^"]{2,80})","tagline":"([^"]*)"(?:.*?"slug":"([^"]*)")?', text)
+        if matches_pair:
+            results = []
+            for name, tagline, slug in matches_pair[:limit]:
+                url = f"https://www.producthunt.com/posts/{slug}" if slug else "https://www.producthunt.com"
+                results.append(_std(
+                    title=_unescape(name),
+                    url=url,
+                    summary=_unescape(tagline),
+                    source="producthunt",
+                ))
+            return results
+
+        name_only = re.findall(r'data-test="post-name"[^>]*>([^<]+)</a>', text)
+        if name_only:
+            return [_std(title=_unescape(n), url="https://www.producthunt.com", source="producthunt")
+                    for n in name_only[:limit]]
+        if text and len(text) > 1000:
+            return [_zero_results_error("producthunt")]
+        return [{"error": "Product Hunt uses JS rendering; could not extract products.", "source": "producthunt"}]
     except Exception as e:
         return [{"error": f"Product Hunt crawl failed: {e}", "source": "producthunt"}]
 

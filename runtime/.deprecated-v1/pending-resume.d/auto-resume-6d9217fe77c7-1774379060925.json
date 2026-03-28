@@ -1,0 +1,48 @@
+{
+  "id": "auto-resume-6d9217fe77c7-1774379060925",
+  "active": false,
+  "status": "completed",
+  "resumeAfterGatewayRestart": true,
+  "createdAt": "2026-03-24T19:04:20.925Z",
+  "updatedAt": "2026-03-24T19:05:35.513Z",
+  "agentId": "main",
+  "sessionKey": "agent:main:main",
+  "task": "Resume the interrupted conversation after gateway restart and continue the latest unfinished user request.",
+  "steps": [
+    "Read recent session history for this session.",
+    "Infer the latest unfinished user-facing task from the immediate pre-restart context.",
+    "Continue that task in a hidden recovery session.",
+    "Write the final user-facing reply into lastResult and mark the task completed."
+  ],
+  "notes": [
+    "This task was auto-created immediately before a deliberate gateway restart.",
+    "Read recent session history to recover context, but continue only the latest unfinished user request for this session.",
+    "If the latest user request was already fully answered before restart, mark the task completed and explain that no additional reply was needed.",
+    "Set lastResult to the exact user-facing reply text you want delivered back to the original session.",
+    "Restart reason: enable durable-session-foundation hook",
+    "If direct delivery is unavailable, the startup hook will mirror lastResult back into the original session transcript."
+  ],
+  "originSnapshot": {
+    "provider": "webchat",
+    "label": "openclaw-tui",
+    "chatType": "direct",
+    "from": null,
+    "to": null,
+    "accountId": null,
+    "surface": "webchat"
+  },
+  "deliverySnapshot": {
+    "channel": "webchat",
+    "to": null,
+    "accountId": null
+  },
+  "attemptCount": 1,
+  "lastAttemptAt": "2026-03-24T19:05:08.549Z",
+  "resumeSessionKey": "agent:main:resume:auto-resume-6d9217fe77c7-1774379060925",
+  "completedAt": "2026-03-24T19:05:35.107Z",
+  "lastResult": "我已经把 `claude-opus-4.6` 提出来的关键问题补进设计里了，主要修了这几处：\n\n- **turn sequence 并发竞态**\n- 入站写事务明确改成 `BEGIN IMMEDIATE` / 等价单写锁语义\n- 不再把 `MAX(turn_sequence)+1` 当成“天然安全”\n\n- **`received` 队列无人 drain**\n- 明确要求当前 turn 在完成 / 失败 / 中断后，**立刻尝试 claim 同 session 的下一个 `received` turn**\n- 避免后续消息永久卡住\n\n- **claim 语义去歧义**\n- 不再让 `claimNextTurnForSession` 名不副实\n- 设计里已经明确：要么 claim 指定 turn，要么按 `turn_sequence` claim 最早可运行的 `received` turn\n\n- **补了 WAL checkpoint**\n- 加了 `PRAGMA wal_autocheckpoint=1000;`\n\n- **补了周期性 reaper**\n- 不只靠启动恢复\n- 第一版就要求有轻量周期 sweep，处理 lease 过期 / 挂死 turn，避免 session 被长期堵住\n\n- **补了 `content_json` 容错要求**\n- recovery / transcript rebuild 必须能容忍异常或畸形 message row，不允许整条恢复链被一条坏数据拖死\n\n设计文档现在已经是修订版了，还是这份：\n`/home/xtrao/.openclaw/backup-staging/azurevm-openclaw-backup/workspace/docs/durable-session-foundation-design.md`\n\n不过我先说实话：**代码实现还没完成落盘**。目前完成的是 review + design 修订，真正的 schema/store/inbound/serialization/recovery 这几块还没形成可提交代码。\n我接下来会直接从实现开始，不再单独征求你同意。",
+  "notificationStatus": "ready-to-deliver",
+  "sessionWakeRequestedAt": "2026-03-24T19:05:35.107Z",
+  "sessionMirroredAt": "2026-03-24T19:05:35.513Z",
+  "notificationError": null
+}

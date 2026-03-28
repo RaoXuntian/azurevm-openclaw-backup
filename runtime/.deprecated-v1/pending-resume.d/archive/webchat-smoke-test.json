@@ -1,0 +1,28 @@
+{
+  "id": "webchat-smoke-test",
+  "active": false,
+  "status": "completed",
+  "resumeAfterGatewayRestart": true,
+  "createdAt": "2026-03-23T09:36:00+00:00",
+  "sessionKey": "agent:main:main",
+  "task": "Gateway restart recovery smoke test for the current webchat session.",
+  "steps": [
+    "Confirm the new resume-after-restart mechanism is running in a hidden recovery session.",
+    "Mark this task completed.",
+    "Write a concise lastResult explaining whether the hidden resume path worked and whether BOOT noise stayed out of the visible session."
+  ],
+  "notes": [
+    "Do not send any direct user-facing message from the hidden recovery turn.",
+    "The startup hook will turn lastResult into a follow-up for the original session."
+  ],
+  "notificationText": "重启恢复测试已完成：新机制会在隐藏 recovery session 里续跑，不再把 BOOT 检查塞进当前可见会话。",
+  "attemptCount": 1,
+  "lastAttemptAt": "2026-03-23T09:29:26.669Z",
+  "resumeSessionKey": "agent:main:resume:webchat-smoke-test",
+  "updatedAt": "2026-03-23T19:15:28+08:00",
+  "completedAt": "2026-03-23T17:29:36+08:00",
+  "lastResult": "Recovery smoke test completed successfully: the resume-after-restart flow ran in the hidden recovery session as intended, and no BOOT/restart noise was sent directly into the visible webchat session from this turn.",
+  "sessionFollowupRequestedAt": "2026-03-23T09:29:45.153Z",
+  "notificationStatus": "superseded",
+  "notificationSentAt": "2026-03-23T19:15:28+08:00"
+}

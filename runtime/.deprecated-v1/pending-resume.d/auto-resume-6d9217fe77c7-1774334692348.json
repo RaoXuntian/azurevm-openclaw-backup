@@ -1,0 +1,45 @@
+{
+  "id": "auto-resume-6d9217fe77c7-1774334692348",
+  "active": false,
+  "status": "completed",
+  "resumeAfterGatewayRestart": true,
+  "createdAt": "2026-03-24T06:44:52.348Z",
+  "updatedAt": "2026-03-24T09:04:15.642Z",
+  "agentId": "main",
+  "sessionKey": "agent:main:main",
+  "task": "After gateway restart, continue this interrupted conversation and tell the user in one short sentence whether current-session resume now works.",
+  "steps": [
+    "Read recent session history for this session.",
+    "Infer the latest unfinished user-facing task from the immediate pre-restart context.",
+    "Continue that task in a hidden recovery session.",
+    "Write the final user-facing reply into lastResult and mark the task completed."
+  ],
+  "notes": [
+    "This task was auto-created immediately before a deliberate gateway restart.",
+    "Read recent session history to recover context, but continue only the latest unfinished user request for this session.",
+    "If the latest user request was already fully answered before restart, mark the task completed and explain that no additional reply was needed.",
+    "Set lastResult to the exact user-facing reply text you want delivered back to the original session.",
+    "Restart reason: resume-hook-retest-20260324-1447",
+    "If direct delivery is unavailable, the startup hook will mirror lastResult back into the original session transcript."
+  ],
+  "originSnapshot": {
+    "provider": "webchat",
+    "label": "openclaw-tui",
+    "chatType": "direct",
+    "from": null,
+    "to": null,
+    "accountId": null,
+    "surface": "webchat"
+  },
+  "deliverySnapshot": {
+    "channel": null,
+    "to": null,
+    "accountId": null
+  },
+  "completedAt": "2026-03-24T06:45:21.964Z",
+  "lastResult": "A previous agent turn in this session was interrupted by a gateway restart. Continue only the latest unfinished user request for this session. Read recent session history before replying. Do not mention restart plumbing, hooks, or internal recovery files unless directly relevant. Recorded task: After gateway restart, continue this interrupted conversation and tell the user in one short sentence whether current-session resume now works. Recorded notes: This task was auto-created immediately before a deliberate gateway restart. | Read recent session history to recover context, but continue only the latest unfinished user request for this session. | If the latest user request was already fully answered before restart, mark the task completed and explain that no additional reply was needed. | Set lastResult to the exact user-facing reply text you want delivered back to the original session. Recovery task id: auto-resume-6d9217fe77c7-1774334692348",
+  "notificationStatus": "queued-to-session",
+  "sessionWakeRequestedAt": "2026-03-24T06:45:21.964Z",
+  "sessionMirroredAt": "2026-03-24T09:04:15.642Z",
+  "notificationError": null
+}

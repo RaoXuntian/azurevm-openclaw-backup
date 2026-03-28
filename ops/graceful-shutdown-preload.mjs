@@ -2,30 +2,23 @@
  * OpenClaw V2 — Graceful Shutdown Preload
  *
  * Injected into the gateway process via NODE_OPTIONS="--import <path>"
- * This code runs INSIDE the gateway's Node.js process, sharing the same
- * globalThis — which means we can directly access the Lane Queue state
- * used by markGatewayDraining() / waitForActiveTasks() / etc.
  *
- * The preload installs SIGTERM/SIGINT handlers that execute the shutdown
- * pipeline BEFORE the gateway's own handlers (or the OS default) run.
+ * OpenClaw core only drains in-flight tasks on SIGUSR1 (restart), NOT on
+ * SIGTERM (stop). On SIGTERM, it closes the server and exits immediately,
+ * potentially killing in-flight LLM requests.
+ *
+ * This preload intercepts all SIGTERM/SIGINT handler registrations via a
+ * process.on() proxy, captures the core's handlers, and runs a drain-first
+ * pipeline before handing control back to the core's shutdown sequence.
  *
  * Usage:
  *   NODE_OPTIONS="--import /path/to/graceful-shutdown-preload.mjs" openclaw gateway
- *
- * Or via the wrapper script:
- *   ./graceful-gateway.sh [openclaw gateway args]
  *
  * Environment:
  *   GRACE_PERIOD_MS     Soft drain timeout in ms (default: 30000)
  *   HARD_KILL_MS        Hard kill delta after soft drain (default: 10000)
  *   GRACEFUL_LOG        Set to "0" to suppress log output
- *
- * This file does NOT modify anything under node_modules/openclaw/.
  */
-
-import { readFile, readdir } from 'node:fs/promises';
-import path from 'node:path';
-import { pathToFileURL } from 'node:url';
 
 // ─── Configuration ──────────────────────────────────────────────────────────
 
@@ -36,17 +29,8 @@ const SILENT          = process.env.GRACEFUL_LOG === '0';
 const P = '🦞 [graceful]';
 const log  = SILENT ? () => {} : (msg) => console.log(`${P} ${msg}`);
 const warn = SILENT ? () => {} : (msg) => console.warn(`${P} ⚠️  ${msg}`);
-const err  = (msg) => console.error(`${P} ❌ ${msg}`);
 
-// ─── Lazy internal symbol resolution ────────────────────────────────────────
-//
-// We can't resolve symbols at preload time because pi-embedded hasn't been
-// imported yet by the gateway. Instead, we defer resolution to when SIGTERM
-// actually fires. By that point the gateway is fully running and all modules
-// are loaded into the module cache.
-//
-// Strategy A: Read the Lane Queue state directly from globalThis (preferred)
-// Strategy B: Dynamic import of pi-embedded and resolve export aliases (fallback)
+// ─── Lane Queue access via globalThis singleton ─────────────────────────────
 
 const COMMAND_QUEUE_STATE_KEY = Symbol.for('openclaw.commandQueueState');
 
@@ -54,10 +38,6 @@ function getQueueState() {
   return globalThis[COMMAND_QUEUE_STATE_KEY] ?? null;
 }
 
-/**
- * Mark the gateway as draining. New tasks enqueued via enqueueCommandInLane()
- * will be rejected with GatewayDrainingError.
- */
 function markDraining() {
   const state = getQueueState();
   if (state) {
@@ -67,9 +47,6 @@ function markDraining() {
   return false;
 }
 
-/**
- * Count currently executing tasks across all lanes.
- */
 function getActiveCount() {
   const state = getQueueState();
   if (!state) return 0;
@@ -80,19 +57,13 @@ function getActiveCount() {
   return total;
 }
 
-/**
- * Wait for all currently active tasks to finish or timeout.
- * Only tracks tasks that are already executing — new enqueues after
- * markDraining() are rejected, so the set is monotonically shrinking.
- */
 function waitForActiveTasks(timeoutMs) {
   const POLL_MS = 100;
   const deadline = Date.now() + timeoutMs;
   const state = getQueueState();
 
-  if (!state) return Promise.resolve({ drained: true, reason: 'no-queue-state' });
+  if (!state) return Promise.resolve({ drained: true });
 
-  // Snapshot task IDs that are currently active
   const activeAtStart = new Set();
   for (const lane of state.lanes.values()) {
     for (const taskId of lane.activeTaskIds) {
@@ -101,38 +72,60 @@ function waitForActiveTasks(timeoutMs) {
   }
 
   if (activeAtStart.size === 0) {
-    return Promise.resolve({ drained: true, reason: 'no-active-tasks' });
+    return Promise.resolve({ drained: true });
   }
 
   return new Promise((resolve) => {
     const check = () => {
-      // Check if any of the originally-active tasks are still running
       let hasPending = false;
       for (const lane of state.lanes.values()) {
         for (const taskId of lane.activeTaskIds) {
-          if (activeAtStart.has(taskId)) {
-            hasPending = true;
-            break;
-          }
+          if (activeAtStart.has(taskId)) { hasPending = true; break; }
         }
         if (hasPending) break;
       }
 
-      if (!hasPending) {
-        resolve({ drained: true, reason: 'all-completed' });
-        return;
-      }
-
-      if (Date.now() >= deadline) {
-        resolve({ drained: false, reason: 'timeout', remaining: getActiveCount() });
-        return;
-      }
-
+      if (!hasPending) { resolve({ drained: true }); return; }
+      if (Date.now() >= deadline) { resolve({ drained: false }); return; }
       setTimeout(check, POLL_MS);
     };
     check();
   });
 }
+
+// ─── Intercept process.on() to capture core signal handlers ─────────────────
+//
+// This is the most reliable approach: we monkey-patch process.on/once so that
+// when the core gateway registers its SIGTERM/SIGINT handlers, we silently
+// capture them instead of letting them register. When our drain finishes,
+// we call the captured handlers directly.
+
+const INTERCEPTED_SIGNALS = new Set(['SIGTERM', 'SIGINT']);
+const capturedCoreHandlers = { SIGTERM: [], SIGINT: [] };
+let ourHandlersInstalled = false;
+
+const origProcessOn   = process.on.bind(process);
+const origProcessOnce = process.once.bind(process);
+
+process.on = function patchedOn(event, listener) {
+  if (INTERCEPTED_SIGNALS.has(event) && ourHandlersInstalled) {
+    // This is the core (or any other code) trying to register a signal handler.
+    // Capture it instead of registering.
+    capturedCoreHandlers[event].push(listener);
+    log(`  Intercepted core ${event} handler registration`);
+    return this;
+  }
+  return origProcessOn(event, listener);
+};
+
+process.once = function patchedOnce(event, listener) {
+  if (INTERCEPTED_SIGNALS.has(event) && ourHandlersInstalled) {
+    capturedCoreHandlers[event].push(listener);
+    log(`  Intercepted core ${event} handler registration (once)`);
+    return this;
+  }
+  return origProcessOnce(event, listener);
+};
 
 // ─── Graceful shutdown pipeline ─────────────────────────────────────────────
 
@@ -150,12 +143,10 @@ async function gracefulShutdown(signal) {
   log('Step 1/3: Marking gateway as draining...');
   const marked = markDraining();
   if (marked) {
-    log(`  Queue state found ✓ — new LLM tasks will be rejected`);
+    log('  Queue state found ✓ — new LLM tasks will be rejected');
   } else {
-    warn('  Queue state not found on globalThis — gateway may not have fully started');
-    warn('  Proceeding to exit after brief delay...');
-    await new Promise(r => setTimeout(r, 2000));
-    process.exit(0);
+    warn('  Queue state not found — falling back to core shutdown');
+    invokeCoreThenExit(signal);
     return;
   }
 
@@ -169,18 +160,16 @@ async function gracefulShutdown(signal) {
     const result = await waitForActiveTasks(GRACE_PERIOD_MS);
 
     if (result.drained) {
-      const elapsed = Date.now() - startTime;
-      log(`  All tasks drained in ${elapsed}ms ✓`);
+      log(`  All tasks drained in ${Date.now() - startTime}ms ✓`);
     } else {
       const remaining = getActiveCount();
       warn(`  Soft drain timeout — ${remaining} task(s) still active`);
 
-      // Hard kill phase: brief additional wait then give up
       if (HARD_KILL_MS > 0 && remaining > 0) {
         log(`  Hard kill phase: waiting additional ${HARD_KILL_MS}ms...`);
         const hardResult = await waitForActiveTasks(HARD_KILL_MS);
         if (hardResult.drained) {
-          log(`  Hard kill phase: tasks completed ✓`);
+          log('  Hard kill phase: tasks completed ✓');
         } else {
           warn(`  Hard kill: ${getActiveCount()} task(s) abandoned`);
         }
@@ -190,36 +179,41 @@ async function gracefulShutdown(signal) {
     log('Step 2/3: No active tasks — skipping drain');
   }
 
-  // ── Step 3: Exit ─────────────────────────────────────────────────────
-  //
-  // We don't call runGlobalGatewayStopSafely() here because the gateway's
-  // own shutdown sequence will handle resource teardown when it receives
-  // the process exit. Our job is just the drain.
-  //
-  // By calling process.exit(0), Node.js will:
-  //   1. Run all 'exit' event handlers (gateway's cleanup)
-  //   2. Close the event loop
-  //   3. Return exit code 0 to the process manager
-  //
+  // ── Step 3: Hand off to core shutdown ────────────────────────────────
   const totalMs = Date.now() - startTime;
-  log(`Step 3/3: Shutdown complete in ${totalMs}ms — exiting with code 0`);
-  log('Goodbye! 🦞');
+  log(`Step 3/3: Drain complete in ${totalMs}ms — invoking core shutdown...`);
 
-  process.exit(0);
+  invokeCoreThenExit(signal);
 }
 
-// ─── Signal handler installation ────────────────────────────────────────────
-//
-// Install our handlers early. Node.js signal handlers run in registration
-// order, but process.on('SIGTERM') overrides the default signal behavior
-// (which would kill the process). Our handler runs the drain pipeline,
-// then calls process.exit(0).
-//
-// We use { once: false } so we can handle repeated signals (e.g., double
-// Ctrl+C just logs that shutdown is already in progress).
+/**
+ * Call captured core signal handlers, then exit if they don't.
+ */
+function invokeCoreThenExit(signal) {
+  const handlers = capturedCoreHandlers[signal] || [];
 
-process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
-process.on('SIGINT',  () => gracefulShutdown('SIGINT'));
+  if (handlers.length > 0) {
+    log(`  Invoking ${handlers.length} captured core ${signal} handler(s)...`);
+    for (const handler of handlers) {
+      try { handler(); } catch (e) { warn(`  Core handler error: ${e.message}`); }
+    }
+    // Core should eventually call process.exit(). Safety net:
+    setTimeout(() => {
+      warn('  Core did not exit within 15s — forcing exit');
+      process.exit(0);
+    }, 15000).unref();
+  } else {
+    log('  No captured core handlers — exiting directly');
+    process.exit(0);
+  }
+}
+
+// ─── Install our signal handlers ────────────────────────────────────────────
+// Use the ORIGINAL process.on so our handlers are real, not intercepted.
+
+origProcessOn('SIGTERM', () => gracefulShutdown('SIGTERM'));
+origProcessOn('SIGINT',  () => gracefulShutdown('SIGINT'));
+ourHandlersInstalled = true;
 
 log('Preload active — SIGTERM/SIGINT handlers installed');
 log(`Drain budget: ${GRACE_PERIOD_MS}ms soft + ${HARD_KILL_MS}ms hard = ${GRACE_PERIOD_MS + HARD_KILL_MS}ms total`);

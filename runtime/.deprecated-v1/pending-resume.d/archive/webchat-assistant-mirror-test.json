@@ -1,0 +1,28 @@
+{
+  "id": "webchat-assistant-mirror-test",
+  "active": false,
+  "status": "completed",
+  "resumeAfterGatewayRestart": true,
+  "createdAt": "2026-03-23T11:18:00+08:00",
+  "sessionKey": "agent:main:main",
+  "task": "Verify that post-restart recovery mirrors a natural assistant message into the current webchat session instead of surfacing a raw system follow-up.",
+  "steps": [
+    "Confirm the hidden recovery path still works.",
+    "Mark this task completed.",
+    "Write a short user-facing notificationText that should appear as a normal assistant reply in the original session."
+  ],
+  "notes": [
+    "Do not emit any raw BOOT/system follow-up text.",
+    "The startup hook should mirror notificationText directly into the original session transcript as an assistant message."
+  ],
+  "notificationText": "测试通过：重启后的恢复结果现在会直接作为正常助手回复回到当前会话，不再冒出原始 system 提示。",
+  "attemptCount": 1,
+  "lastAttemptAt": "2026-03-23T11:16:05.479Z",
+  "resumeSessionKey": "agent:main:resume:webchat-assistant-mirror-test",
+  "updatedAt": "2026-03-23T11:16:20.302Z",
+  "completedAt": "2026-03-23T11:18:00+08:00",
+  "lastResult": "Recovery mirror test completed; notificationText is ready to be mirrored into the original webchat session as a normal assistant reply.",
+  "sessionMirroredAt": "2026-03-23T11:16:20.302Z",
+  "notificationStatus": "mirrored",
+  "notificationError": null
+}

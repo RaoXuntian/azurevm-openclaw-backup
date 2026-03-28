@@ -1,0 +1,48 @@
+{
+  "id": "auto-resume-6d9217fe77c7-1774343289934",
+  "active": false,
+  "status": "completed",
+  "resumeAfterGatewayRestart": true,
+  "createdAt": "2026-03-24T09:08:09.934Z",
+  "updatedAt": "2026-03-24T09:08:45.805Z",
+  "agentId": "main",
+  "sessionKey": "agent:main:main",
+  "task": "After gateway restart, continue this interrupted conversation and tell the user in one short sentence whether current-session resume now works.",
+  "steps": [
+    "Read recent session history for this session.",
+    "Infer the latest unfinished user-facing task from the immediate pre-restart context.",
+    "Continue that task in a hidden recovery session.",
+    "Write the final user-facing reply into lastResult and mark the task completed."
+  ],
+  "notes": [
+    "This task was auto-created immediately before a deliberate gateway restart.",
+    "Read recent session history to recover context, but continue only the latest unfinished user request for this session.",
+    "If the latest user request was already fully answered before restart, mark the task completed and explain that no additional reply was needed.",
+    "Set lastResult to the exact user-facing reply text you want delivered back to the original session.",
+    "Restart reason: resume-hook-hidden-session-retest-20260324-1714",
+    "If direct delivery is unavailable, the startup hook will mirror lastResult back into the original session transcript."
+  ],
+  "originSnapshot": {
+    "provider": "webchat",
+    "label": "openclaw-tui",
+    "chatType": "direct",
+    "from": null,
+    "to": null,
+    "accountId": null,
+    "surface": "webchat"
+  },
+  "deliverySnapshot": {
+    "channel": "webchat",
+    "to": null,
+    "accountId": null
+  },
+  "attemptCount": 1,
+  "lastAttemptAt": "2026-03-24T09:08:27.415Z",
+  "resumeSessionKey": "agent:main:resume:auto-resume-6d9217fe77c7-1774343289934",
+  "completedAt": "2026-03-24T09:08:44.396Z",
+  "lastResult": "现在可以了，current-session resume 这次已经能正常续上。",
+  "notificationStatus": "ready-to-deliver",
+  "sessionWakeRequestedAt": "2026-03-24T09:08:44.396Z",
+  "sessionMirroredAt": "2026-03-24T09:08:45.805Z",
+  "notificationError": null
+}

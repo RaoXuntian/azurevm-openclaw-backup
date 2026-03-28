@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "active": false,
+  "status": "completed",
+  "resumeAfterGatewayRestart": true,
+  "sessionKey": "agent:main:openclaw-weixin:fbcea6d15643-im-bot:direct:o9cq803n7pbwa5mgx2lsrmapcmdw@im.wechat",
+  "reply": {
+    "channel": "openclaw-weixin",
+    "to": "o9cq803n7pBWA5MGx2lSRMaPCmdw@im.wechat",
+    "accountId": "fbcea6d15643-im-bot"
+  },
+  "task": "Gateway 重启后，确认新的喝水提醒副本已经创建，并将结果回报给当前微信会话。",
+  "steps": [
+    "读取 /home/xtrao/.openclaw/cron/jobs.json",
+    "确认存在 2 条名为 Hydration + move + joke reminders 的启用 job",
+    "确认其中一条发给 o9cq803n7pBWA5MGx2lSRMaPCmdw@im.wechat / fbcea6d15643-im-bot",
+    "确认另一条发给 o9cq800baU0x_p3uAcM5QRGJQ4U0@im.wechat / 80c2c4bab706-im-bot",
+    "把 lastResult 写成简短确认消息"
+  ],
+  "notes": "这是复制喝水提醒 job 后的恢复确认。",
+  "notificationText": "新的喝水提醒副本已经建好了：现在你和之前那个微信用户都会收到同风格的提醒。下次触发时间是今晚 20:00。",
+  "createdAt": "2026-03-23T19:43:00+08:00",
+  "updatedAt": "2026-03-23T11:47:05.537Z",
+  "lastResult": "已确认：现在有 2 条启用的 Hydration + move + joke reminders，分别发送到当前微信会话和之前那个微信会话。",
+  "completedAt": "2026-03-23T19:46:53+08:00",
+  "failedAt": null,
+  "attemptCount": 1,
+  "lastAttemptAt": "2026-03-23T11:46:47.731Z",
+  "resumeSessionKey": "agent:main:resume:pending-resume",
+  "notificationStatus": "sent",
+  "notificationSentAt": "2026-03-23T11:47:05.537Z",
+  "notificationError": null
+}

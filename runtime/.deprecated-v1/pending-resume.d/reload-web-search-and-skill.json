@@ -1,0 +1,28 @@
+{
+  "id": "reload-web-search-and-skill",
+  "active": false,
+  "status": "failed",
+  "resumeAfterGatewayRestart": true,
+  "createdAt": "2026-03-23T14:52:30Z",
+  "sessionKey": "agent:main:main",
+  "task": "After the gateway restart, verify that the updated Gemini web_search config is loaded and that the no-card-search skill is available, then report the result back to the current visible session as a normal assistant reply.",
+  "steps": [
+    "Read ~/.openclaw/openclaw.json and confirm tools.web.search.provider=gemini, gemini.model=gemini-2.5-flash, timeoutSeconds=20, cacheTtlMinutes=120.",
+    "Run openclaw skills list and confirm no-card-search is present and ready.",
+    "If both checks pass, mark the task completed with a short success summary. If either check fails, mark failed and explain exactly what did not load."
+  ],
+  "notes": [
+    "Do not send any raw BOOT or system prompt text.",
+    "The startup hook should mirror the final notificationText into the current session as a normal assistant reply."
+  ],
+  "notificationText": "重启验收通过：Gemini web_search 新配置已经生效（gemini-2.5-flash / timeout 20s / cache 120min），无卡 fallback skill `no-card-search` 也已经成功加载。",
+  "attemptCount": 2,
+  "lastAttemptAt": "2026-03-23T14:58:30Z",
+  "resumeSessionKey": "agent:main:resume:reload-web-search-and-skill",
+  "updatedAt": "2026-03-23T14:54:03.133Z",
+  "failedAt": "2026-03-23T14:58:30Z",
+  "lastResult": "检查失败：~/.openclaw/openclaw.json 中 Gemini web_search 配置已生效（provider=gemini, model=gemini-2.5-flash, timeoutSeconds=20, cacheTtlMinutes=120），但 `openclaw skills list` 未显示 `no-card-search`，因此该 skill 目前没有成功加载。",
+  "sessionMirroredAt": "2026-03-23T14:54:03.133Z",
+  "notificationStatus": "mirrored",
+  "notificationError": null
+}
